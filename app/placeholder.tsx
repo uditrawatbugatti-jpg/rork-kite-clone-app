@@ -80,9 +80,6 @@ export default function PlaceholderScreen() {
           </View>
         </View>
 
-        <Text style={[styles.hint, { color: colors.textSecondary }]}>
-          If you want this screen implemented for real, tell me what it should do.
-        </Text>
       </View>
     </SafeAreaView>
   );
@@ -141,10 +138,5 @@ const styles = StyleSheet.create({
   secondaryButtonText: {
     fontWeight: '600' as const,
     fontSize: 13,
-  },
-  hint: {
-    marginTop: 14,
-    fontSize: 12,
-    lineHeight: 16,
   },
 });

@@ -119,12 +119,7 @@ export default function ProfileScreen() {
 
              <TouchableOpacity
                style={[styles.menuItem, { borderBottomColor: colors.border }]}
-               onPress={() =>
-                 router.push({
-                   pathname: '/placeholder' as any,
-                   params: { title: 'Funds', subtitle: 'Deposit, withdraw and view margins (placeholder).' },
-                 })
-               }
+               onPress={() => router.push('/(tabs)/profile/funds' as any)}
                testID="profile-funds"
              >
                  <View style={styles.menuIconContainer}>

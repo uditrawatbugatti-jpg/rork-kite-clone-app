@@ -24,6 +24,7 @@ export default function ProfileLayout() {
       <Stack.Screen name="index" options={{ title: 'Profile' }} />
       <Stack.Screen name="app-code" options={{ title: 'App Code' }} />
       <Stack.Screen name="settings" options={{ title: 'Settings' }} />
+      <Stack.Screen name="funds" options={{ title: 'Funds' }} />
     </Stack>
   );
 }
