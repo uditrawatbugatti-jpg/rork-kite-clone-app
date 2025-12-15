@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { View, Text, StyleSheet, FlatList, TouchableOpacity, useColorScheme, StatusBar } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Colors from '@/constants/colors';
+import { Typography } from '@/constants/typography';
 import { Holding, Position } from '@/mocks/stocks';
 import { Search, SlidersHorizontal, ChevronDown, Users, PieChart, TrendingUp, FileText } from 'lucide-react-native';
 import { useMarket } from '@/context/MarketContext';
@@ -74,18 +75,18 @@ export default function PortfolioScreen() {
       <View style={[styles.summaryCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
         <View style={styles.summaryCardRow}>
           <View style={styles.summaryTopItem}>
-            <Text style={[styles.summaryTopLabel, { color: colors.textSecondary }]}>Invested</Text>
-            <Text style={[styles.summaryTopValue, { color: colors.text }]}>{formatCurrency(holdingsSummary.totalInvested)}</Text>
+            <Text style={[styles.summaryTopLabel, Typography.sectionLabel, { color: colors.textSecondary }]}>Invested</Text>
+            <Text style={[styles.summaryTopValue, Typography.bodyStrong, Typography.monoNumber, { color: colors.text }]}>{formatCurrency(holdingsSummary.totalInvested)}</Text>
           </View>
           <View style={styles.summaryTopItem}>
-            <Text style={[styles.summaryTopLabel, { color: colors.textSecondary, textAlign: 'right' }]}>Current</Text>
-            <Text style={[styles.summaryTopValue, { color: colors.text, textAlign: 'right' }]}>{formatCurrency(holdingsSummary.totalCurrent)}</Text>
+            <Text style={[styles.summaryTopLabel, Typography.sectionLabel, { color: colors.textSecondary, textAlign: 'right' }]}>Current</Text>
+            <Text style={[styles.summaryTopValue, Typography.bodyStrong, Typography.monoNumber, { color: colors.text, textAlign: 'right' }]}>{formatCurrency(holdingsSummary.totalCurrent)}</Text>
           </View>
         </View>
         <View style={[styles.summaryTopDivider, { backgroundColor: colors.border }]} />
         <View style={styles.summaryCardRow}>
           <View style={styles.summaryTopItem}>
-            <Text style={[styles.summaryTopLabel, { color: colors.textSecondary }]}>Day&apos;s P&L</Text>
+            <Text style={[styles.summaryTopLabel, Typography.sectionLabel, { color: colors.textSecondary }]}>Day&apos;s P&L</Text>
             <Text
               style={[styles.summaryTopValue, { color: holdingsSummary.daysPnl >= 0 ? colors.success : colors.danger }]}
               testID="portfolio-holdings-days-pnl"
@@ -94,7 +95,7 @@ export default function PortfolioScreen() {
             </Text>
           </View>
           <View style={styles.summaryTopItem}>
-            <Text style={[styles.summaryTopLabel, { color: colors.textSecondary, textAlign: 'right' }]}>Total P&L</Text>
+            <Text style={[styles.summaryTopLabel, Typography.sectionLabel, { color: colors.textSecondary, textAlign: 'right' }]}>Total P&L</Text>
             <Text
               style={[styles.summaryTopValue, { color: holdingsSummary.totalPnl >= 0 ? colors.success : colors.danger, textAlign: 'right' }]}
               testID="portfolio-holdings-total-pnl"
@@ -136,13 +137,13 @@ export default function PortfolioScreen() {
     <View style={[styles.itemContainer, { borderBottomColor: colors.border, backgroundColor: colors.background }]}>
       <View style={styles.itemRow}>
         <View>
-          <Text style={[styles.itemSymbol, { color: colors.text }]}>{item.symbol}</Text>
+          <Text style={[styles.itemSymbol, Typography.bodyStrong, { color: colors.text }]}>{item.symbol}</Text>
           <Text style={[styles.itemQuantity, { color: colors.textSecondary }]}>
             {item.quantity} Qty • Avg. {item.avgPrice.toFixed(2)}
           </Text>
         </View>
         <View style={styles.itemRightAlign}>
-          <Text style={[styles.pnlValue, { color: item.pnl >= 0 ? colors.success : colors.danger }]}>
+          <Text style={[styles.pnlValue, Typography.bodyStrong, Typography.monoNumber, { color: item.pnl >= 0 ? colors.success : colors.danger }]}>
              {item.pnl >= 0 ? '+' : ''}{formatCurrency(item.pnl)}
           </Text>
           <Text style={[styles.pnlPercent, { color: item.pnl >= 0 ? colors.success : colors.danger }]}>
@@ -151,7 +152,7 @@ export default function PortfolioScreen() {
         </View>
       </View>
       <View style={styles.itemRowSecondary}>
-        <Text style={[styles.ltpText, { color: colors.textSecondary }]}>
+        <Text style={[styles.ltpText, Typography.body, Typography.monoNumber, { color: colors.textSecondary }]}>
           LTP {formatCurrency(item.ltp)}
         </Text>
         <Text style={[styles.dayChangeText, { color: item.dayChange >= 0 ? colors.success : colors.danger }]}>
@@ -165,7 +166,7 @@ export default function PortfolioScreen() {
     <View style={[styles.itemContainer, { borderBottomColor: colors.border, backgroundColor: colors.background }]}>
       <View style={styles.itemRow}>
         <View>
-          <Text style={[styles.itemSymbol, { color: colors.text }]}>{item.symbol}</Text>
+          <Text style={[styles.itemSymbol, Typography.bodyStrong, { color: colors.text }]}>{item.symbol}</Text>
           <View style={styles.tagRow}>
              <View style={[styles.tag, { backgroundColor: colors.surface }]}>
                 <Text style={[styles.tagText, { color: colors.textSecondary }]}>{item.product}</Text>
@@ -176,7 +177,7 @@ export default function PortfolioScreen() {
           </View>
         </View>
         <View style={styles.itemRightAlign}>
-          <Text style={[styles.pnlValue, { color: item.pnl >= 0 ? colors.success : colors.danger }]}>
+          <Text style={[styles.pnlValue, Typography.bodyStrong, Typography.monoNumber, { color: item.pnl >= 0 ? colors.success : colors.danger }]}>
              {item.pnl >= 0 ? '+' : ''}{formatCurrency(item.pnl)}
           </Text>
           <Text style={[styles.ltpText, { color: colors.textSecondary, marginTop: 2, textAlign: 'right' }]}>

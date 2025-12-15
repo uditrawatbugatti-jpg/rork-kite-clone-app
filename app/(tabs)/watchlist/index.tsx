@@ -4,6 +4,7 @@ import { Search, ChevronDown, ChevronUp, SlidersHorizontal, Info } from 'lucide-
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Colors from '@/constants/colors';
+import { Typography } from '@/constants/typography';
 import { Stock } from '@/mocks/stocks';
 import { useMarket } from '@/context/MarketContext';
 import StockQuickActionsSheet from '@/components/StockQuickActionsSheet';
@@ -46,8 +47,8 @@ export default function WatchlistScreen() {
       {indices.map((index, i) => (
         <View key={i} style={[styles.indexItem, i === 0 && styles.indexItemBorder, { borderColor: colors.border }]}>
           <View style={styles.indexTopRow}>
-            <Text style={[styles.indexName, { color: colors.textSecondary }]}>{index.name}</Text>
-            <Text style={[styles.indexPrice, { color: index.isUp ? colors.success : colors.danger }]}>
+            <Text style={[styles.indexName, Typography.sectionLabel, { color: colors.textSecondary }]}>{index.name}</Text>
+            <Text style={[styles.indexPrice, Typography.bodyStrong, Typography.monoNumber, { color: index.isUp ? colors.success : colors.danger }]}>
               {formatCurrency(index.price)}
             </Text>
           </View>
@@ -69,18 +70,18 @@ export default function WatchlistScreen() {
       testID={`watchlist-stock-${item.symbol}`}
     >
       <View style={styles.stockInfo}>
-        <Text style={[styles.stockSymbol, { color: colors.text }]}>{item.symbol}</Text>
+        <Text style={[styles.stockSymbol, Typography.bodyStrong, { color: colors.text }]}>{item.symbol}</Text>
         <Text style={[styles.stockExchange, { color: colors.textSecondary }]}>{item.exchange}</Text>
       </View>
 
       <View style={styles.stockRight}>
         <View style={styles.stockPriceInfo}>
-          <Text style={[styles.stockPrice, { color: item.isUp ? colors.success : colors.danger }]}>
+          <Text style={[styles.stockPrice, Typography.bodyStrong, Typography.monoNumber, { color: item.isUp ? colors.success : colors.danger }]}>
             {formatCurrency(item.price)}
           </Text>
           <View style={styles.stockChangeContainer}>
             {item.isUp ? <ChevronUp size={12} color={colors.textSecondary} /> : <ChevronDown size={12} color={colors.textSecondary} />}
-            <Text style={[styles.stockChange, { color: colors.textSecondary }]}>
+            <Text style={[styles.stockChange, Typography.body, Typography.monoNumber, { color: colors.textSecondary }]}>
               {item.change.toFixed(2)} ({item.changePercent.toFixed(2)}%)
             </Text>
           </View>

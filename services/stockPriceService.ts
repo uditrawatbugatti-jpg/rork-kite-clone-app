@@ -2,6 +2,14 @@
 
 const YAHOO_FINANCE_API = 'https://query1.finance.yahoo.com/v7/finance/quote';
 
+type YahooQuote = {
+  symbol?: string;
+  regularMarketPrice?: number;
+  regularMarketPreviousClose?: number;
+  regularMarketChange?: number;
+  regularMarketChangePercent?: number;
+};
+
 // Map local symbols to Yahoo Finance symbols (NSE)
 const SYMBOL_MAP: Record<string, string> = {
   'RELIANCE': 'RELIANCE.NS',
@@ -49,12 +57,35 @@ export interface IndexQuote {
   isUp: boolean;
 }
 
+const normalizeLocalSymbol = (symbol: string): string => symbol.trim().toUpperCase();
+
+const toYahooSymbol = (localSymbol: string): string | undefined => {
+  const sym = normalizeLocalSymbol(localSymbol);
+  if (!sym) return undefined;
+
+  if (sym.includes('.')) return sym;
+  if (SYMBOL_MAP[sym]) return SYMBOL_MAP[sym];
+
+  return `${sym}.NS`;
+};
+
+const toLocalSymbolFromYahoo = (yahooSymbol: string | undefined): string | undefined => {
+  const sym = (yahooSymbol ?? '').toUpperCase();
+  if (!sym) return undefined;
+
+  const mapped = Object.entries(SYMBOL_MAP).find(([, yahooSym]) => yahooSym.toUpperCase() === sym)?.[0];
+  if (mapped) return mapped;
+
+  if (sym.endsWith('.NS')) return sym.replace(/\.NS$/i, '');
+  return sym;
+};
+
 // Fetch stock quotes from Yahoo Finance
 export async function fetchStockQuotes(symbols: string[]): Promise<Record<string, StockQuote>> {
   try {
     const yahooSymbols = symbols
-      .map(s => SYMBOL_MAP[s])
-      .filter(Boolean);
+      .map(toYahooSymbol)
+      .filter(Boolean) as string[];
     
     if (yahooSymbols.length === 0) {
       console.log('[StockService] No valid symbols to fetch');
@@ -62,7 +93,8 @@ export async function fetchStockQuotes(symbols: string[]): Promise<Record<string
     }
 
     const symbolsParam = yahooSymbols.join(',');
-    const url = `${YAHOO_FINANCE_API}?symbols=${symbolsParam}`;
+    const cacheBuster = Date.now();
+    const url = `${YAHOO_FINANCE_API}?symbols=${encodeURIComponent(symbolsParam)}&region=IN&lang=en-IN&formatted=false&_=${cacheBuster}`;
     
     console.log('[StockService] Fetching quotes for:', symbolsParam);
     
@@ -80,29 +112,25 @@ export async function fetchStockQuotes(symbols: string[]): Promise<Record<string
     const quotes: Record<string, StockQuote> = {};
 
     if (data.quoteResponse?.result) {
-      for (const quote of data.quoteResponse.result) {
-        // Extract local symbol from Yahoo symbol
-        const localSymbol = Object.entries(SYMBOL_MAP).find(
-          ([_, yahooSym]) => yahooSym === quote.symbol
-        )?.[0];
+      for (const quote of data.quoteResponse.result as YahooQuote[]) {
+        const localSymbol = toLocalSymbolFromYahoo(quote.symbol);
+        if (!localSymbol) continue;
 
-        if (localSymbol) {
-          const price = quote.regularMarketPrice || 0;
-          const previousClose = quote.regularMarketPreviousClose || price;
-          const change = quote.regularMarketChange || 0;
-          const changePercent = quote.regularMarketChangePercent || 0;
+        const price = quote.regularMarketPrice ?? 0;
+        const previousClose = quote.regularMarketPreviousClose ?? price;
+        const change = quote.regularMarketChange ?? 0;
+        const changePercent = quote.regularMarketChangePercent ?? 0;
 
-          quotes[localSymbol] = {
-            symbol: localSymbol,
-            price: Math.round(price * 100) / 100,
-            change: Math.round(change * 100) / 100,
-            changePercent: Math.round(changePercent * 100) / 100,
-            previousClose: Math.round(previousClose * 100) / 100,
-            isUp: change >= 0,
-          };
-          
-          console.log(`[StockService] ${localSymbol}: ₹${price.toFixed(2)} (${change >= 0 ? '+' : ''}${change.toFixed(2)})`);
-        }
+        quotes[localSymbol] = {
+          symbol: localSymbol,
+          price: Math.round(price * 100) / 100,
+          change: Math.round(change * 100) / 100,
+          changePercent: Math.round(changePercent * 100) / 100,
+          previousClose: Math.round(previousClose * 100) / 100,
+          isUp: change >= 0,
+        };
+        
+        console.log(`[StockService] ${localSymbol}: ₹${price.toFixed(2)} (${change >= 0 ? '+' : ''}${change.toFixed(2)})`);
       }
     }
 
@@ -117,7 +145,8 @@ export async function fetchStockQuotes(symbols: string[]): Promise<Record<string
 export async function fetchIndexQuotes(): Promise<IndexQuote[]> {
   try {
     const yahooSymbols = Object.values(INDEX_SYMBOL_MAP).join(',');
-    const url = `${YAHOO_FINANCE_API}?symbols=${yahooSymbols}`;
+    const cacheBuster = Date.now();
+    const url = `${YAHOO_FINANCE_API}?symbols=${encodeURIComponent(yahooSymbols)}&region=IN&lang=en-IN&formatted=false&_=${cacheBuster}`;
     
     console.log('[StockService] Fetching index quotes');
     
@@ -179,15 +208,16 @@ const CORS_PROXIES = [
 export async function fetchStockQuotesWithProxy(symbols: string[]): Promise<Record<string, StockQuote>> {
   try {
     const yahooSymbols = symbols
-      .map(s => SYMBOL_MAP[s])
-      .filter(Boolean);
+      .map(toYahooSymbol)
+      .filter(Boolean) as string[];
     
     if (yahooSymbols.length === 0) {
       return {};
     }
 
     const symbolsParam = yahooSymbols.join(',');
-    const targetUrl = `${YAHOO_FINANCE_API}?symbols=${encodeURIComponent(symbolsParam)}`;
+    const cacheBuster = Date.now();
+    const targetUrl = `${YAHOO_FINANCE_API}?symbols=${encodeURIComponent(symbolsParam)}&region=IN&lang=en-IN&formatted=false&_=${cacheBuster}`;
     
     // Try direct first, then proxies
     const urls = [
@@ -211,26 +241,23 @@ export async function fetchStockQuotesWithProxy(symbols: string[]): Promise<Reco
         const quotes: Record<string, StockQuote> = {};
 
         if (data.quoteResponse?.result) {
-          for (const quote of data.quoteResponse.result) {
-            const localSymbol = Object.entries(SYMBOL_MAP).find(
-              ([_, yahooSym]) => yahooSym === quote.symbol
-            )?.[0];
+          for (const quote of data.quoteResponse.result as YahooQuote[]) {
+            const localSymbol = toLocalSymbolFromYahoo(quote.symbol);
+            if (!localSymbol) continue;
 
-            if (localSymbol) {
-              const price = quote.regularMarketPrice || 0;
-              const previousClose = quote.regularMarketPreviousClose || price;
-              const change = quote.regularMarketChange || 0;
-              const changePercent = quote.regularMarketChangePercent || 0;
+            const price = quote.regularMarketPrice ?? 0;
+            const previousClose = quote.regularMarketPreviousClose ?? price;
+            const change = quote.regularMarketChange ?? 0;
+            const changePercent = quote.regularMarketChangePercent ?? 0;
 
-              quotes[localSymbol] = {
-                symbol: localSymbol,
-                price: Math.round(price * 100) / 100,
-                change: Math.round(change * 100) / 100,
-                changePercent: Math.round(changePercent * 100) / 100,
-                previousClose: Math.round(previousClose * 100) / 100,
-                isUp: change >= 0,
-              };
-            }
+            quotes[localSymbol] = {
+              symbol: localSymbol,
+              price: Math.round(price * 100) / 100,
+              change: Math.round(change * 100) / 100,
+              changePercent: Math.round(changePercent * 100) / 100,
+              previousClose: Math.round(previousClose * 100) / 100,
+              isUp: change >= 0,
+            };
           }
           
           if (Object.keys(quotes).length > 0) {
@@ -254,7 +281,8 @@ export async function fetchStockQuotesWithProxy(symbols: string[]): Promise<Reco
 export async function fetchIndexQuotesWithProxy(): Promise<IndexQuote[]> {
   try {
     const yahooSymbols = Object.values(INDEX_SYMBOL_MAP).join(',');
-    const targetUrl = `${YAHOO_FINANCE_API}?symbols=${encodeURIComponent(yahooSymbols)}`;
+    const cacheBuster = Date.now();
+    const targetUrl = `${YAHOO_FINANCE_API}?symbols=${encodeURIComponent(yahooSymbols)}&region=IN&lang=en-IN&formatted=false&_=${cacheBuster}`;
     
     const urls = [
       targetUrl,
@@ -307,4 +335,4 @@ export async function fetchIndexQuotesWithProxy(): Promise<IndexQuote[]> {
   }
 }
 
-export { SYMBOL_MAP, INDEX_SYMBOL_MAP };
+export { SYMBOL_MAP, INDEX_SYMBOL_MAP, toYahooSymbol as getYahooSymbolForStock };

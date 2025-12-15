@@ -13,7 +13,6 @@ import {
 import {
   fetchStockQuotesWithProxy,
   fetchIndexQuotesWithProxy,
-  SYMBOL_MAP,
 } from '@/services/stockPriceService';
 import { fetchPaytmMoneyQuotes, isPaytmMoneyConfigured } from '@/services/paytmMoneyService';
 import { usePaytmMoneyConfig } from '@/context/PaytmMoneyConfigContext';
@@ -136,7 +135,6 @@ export const [MarketProvider, useMarket] = createContextHook(() => {
       positions.forEach((p) => allSymbols.add(p.symbol));
 
       const rawSymbolsArray = Array.from(allSymbols).map((s) => s.toUpperCase());
-      const yahooSymbols = rawSymbolsArray.filter((s) => SYMBOL_MAP[s]);
 
       const paytmEnabled = isPaytmMoneyConfigured(paytmConfig);
       console.log('[MarketContext] Paytm configured:', paytmEnabled);
@@ -145,7 +143,7 @@ export const [MarketProvider, useMarket] = createContextHook(() => {
         paytmEnabled
           ? fetchPaytmMoneyQuotes({ symbols: rawSymbolsArray, segment: 'NSE', config: paytmConfig })
           : Promise.resolve({}),
-        fetchStockQuotesWithProxy(yahooSymbols),
+        fetchStockQuotesWithProxy(rawSymbolsArray),
         fetchIndexQuotesWithProxy(),
       ]);
 
