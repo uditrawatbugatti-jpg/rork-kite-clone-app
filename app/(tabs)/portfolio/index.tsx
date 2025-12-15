@@ -1,20 +1,123 @@
-import React, { useMemo, useState } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, useColorScheme, StatusBar } from 'react-native';
+import React, { useCallback, useMemo, useRef, useState } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  FlatList,
+  TouchableOpacity,
+  useColorScheme,
+  StatusBar,
+  Modal,
+  Pressable,
+  TextInput,
+  Animated,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useRouter } from 'expo-router';
 import Colors from '@/constants/colors';
 import { Typography } from '@/constants/typography';
-import { Holding, Position } from '@/mocks/stocks';
-import { Search, SlidersHorizontal, ChevronDown, Users, PieChart, TrendingUp, FileText } from 'lucide-react-native';
+import type { Holding, Position, Stock } from '@/mocks/stocks';
+import {
+  Search,
+  SlidersHorizontal,
+  ChevronDown,
+  Users,
+  PieChart,
+  TrendingUp,
+  FileText,
+  MessageCircle,
+  Settings,
+  X,
+  BarChart3,
+  BadgeIndianRupee,
+} from 'lucide-react-native';
 import { useMarket } from '@/context/MarketContext';
+import StockQuickActionsSheet from '@/components/StockQuickActionsSheet';
 
 export default function PortfolioScreen() {
+  const router = useRouter();
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'];
   const [activeTab, setActiveTab] = useState<'holdings' | 'positions'>('holdings');
-  const { holdings, positions, indices } = useMarket();
+  const { holdings, positions, indices, stocks } = useMarket();
+
+  const [searchVisible, setSearchVisible] = useState<boolean>(false);
+  const [searchQuery, setSearchQuery] = useState<string>('');
+
+  const [sheetVisible, setSheetVisible] = useState<boolean>(false);
+  const [selectedStock, setSelectedStock] = useState<Stock | null>(null);
+
+  const [fabMenuVisible, setFabMenuVisible] = useState<boolean>(false);
+  const fabBackdrop = useRef(new Animated.Value(0)).current;
+  const fabTranslate = useRef(new Animated.Value(20)).current;
 
   // Use context data
-  const currentHoldings = holdings; 
+  const currentHoldings = holdings;
+
+  const holdingList = useMemo<Holding[]>(() => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return currentHoldings;
+    return currentHoldings.filter((h) => {
+      const meta = stocks.find((s) => s.symbol.toLowerCase() === h.symbol.toLowerCase());
+      const name = meta?.name ?? '';
+      return h.symbol.toLowerCase().includes(q) || name.toLowerCase().includes(q);
+    });
+  }, [currentHoldings, searchQuery, stocks]);
+
+  const openPlaceholder = useCallback(
+    (title: string, subtitle: string) => {
+      router.push({ pathname: '/placeholder' as any, params: { title, subtitle } });
+    },
+    [router],
+  );
+
+  const getStockFromHolding = useCallback(
+    (holding: Holding): Stock => {
+      const fromList = stocks.find((s) => s.symbol === holding.symbol);
+      if (fromList) return fromList;
+
+      return {
+        symbol: holding.symbol,
+        name: holding.symbol,
+        price: holding.ltp,
+        change: holding.dayChange,
+        changePercent: holding.dayChangePercent,
+        exchange: 'NSE',
+        isUp: holding.dayChange >= 0,
+      };
+    },
+    [stocks],
+  );
+
+  const openStockSheetForHolding = useCallback(
+    (holding: Holding) => {
+      const stock = getStockFromHolding(holding);
+      console.log('[Portfolio] Open stock sheet', { symbol: stock.symbol });
+      setSelectedStock(stock);
+      setSheetVisible(true);
+    },
+    [getStockFromHolding],
+  );
+
+  const closeFabMenu = useCallback(() => {
+    Animated.parallel([
+      Animated.timing(fabBackdrop, { toValue: 0, duration: 140, useNativeDriver: true }),
+      Animated.timing(fabTranslate, { toValue: 20, duration: 140, useNativeDriver: true }),
+    ]).start(({ finished }) => {
+      if (finished) setFabMenuVisible(false);
+    });
+  }, [fabBackdrop, fabTranslate]);
+
+  const openFabMenu = useCallback(() => {
+    setFabMenuVisible(true);
+    fabBackdrop.setValue(0);
+    fabTranslate.setValue(20);
+
+    Animated.parallel([
+      Animated.timing(fabBackdrop, { toValue: 1, duration: 160, useNativeDriver: true }),
+      Animated.spring(fabTranslate, { toValue: 0, useNativeDriver: true, damping: 18, stiffness: 220, mass: 0.9 }),
+    ]).start();
+  }, [fabBackdrop, fabTranslate]);
 
   const formatCurrency = (value: number) => {
     return value.toLocaleString('en-IN', {
@@ -133,34 +236,108 @@ export default function PortfolioScreen() {
     </View>
   );
 
-  const renderHoldingItem = ({ item }: { item: Holding }) => (
-    <View style={[styles.itemContainer, { borderBottomColor: colors.border, backgroundColor: colors.background }]}>
-      <View style={styles.itemRow}>
-        <View>
-          <Text style={[styles.itemSymbol, Typography.bodyStrong, { color: colors.text }]}>{item.symbol}</Text>
-          <Text style={[styles.itemQuantity, { color: colors.textSecondary }]}>
-            {item.quantity} Qty • Avg. {item.avgPrice.toFixed(2)}
+  const renderHoldingItem = ({ item }: { item: Holding }) => {
+    const meta = stocks.find((s) => s.symbol === item.symbol);
+    return (
+      <TouchableOpacity
+        style={[styles.itemContainer, { borderBottomColor: colors.border, backgroundColor: colors.background }]}
+        activeOpacity={0.8}
+        onPress={() => openStockSheetForHolding(item)}
+        testID={`portfolio-holding-row-${item.symbol}`}
+      >
+        <View style={styles.itemRow}>
+          <View style={{ flex: 1, paddingRight: 12 }}>
+            <View style={styles.itemTitleRow}>
+              <Text style={[styles.itemSymbol, Typography.bodyStrong, { color: colors.text }]}>{item.symbol}</Text>
+              <View style={[styles.exchangeTag, { backgroundColor: colors.surface, borderColor: colors.border }]}
+                testID={`portfolio-holding-exchange-${item.symbol}`}
+              >
+                <Text style={[styles.exchangeTagText, { color: colors.textSecondary }]}>{meta?.exchange ?? 'NSE'}</Text>
+              </View>
+            </View>
+
+            {!!meta?.name && (
+              <Text style={[styles.itemName, { color: colors.textSecondary }]} numberOfLines={1}>
+                {meta.name}
+              </Text>
+            )}
+
+            <Text style={[styles.itemQuantity, { color: colors.textSecondary }]}>
+              {item.quantity} Qty • Avg. {item.avgPrice.toFixed(2)}
+            </Text>
+
+            <View style={styles.itemMetaRow}>
+              <Text style={[styles.metaChip, { color: colors.textSecondary }]}>Inv {formatCurrency(item.invested)}</Text>
+              <Text style={[styles.metaDot, { color: colors.border }]}>•</Text>
+              <Text style={[styles.metaChip, { color: colors.textSecondary }]}>Cur {formatCurrency(item.current)}</Text>
+            </View>
+          </View>
+
+          <View style={styles.itemRightAlign}>
+            <TouchableOpacity
+              style={[styles.chatButton, { borderColor: colors.border, backgroundColor: colors.surface }]}
+              onPress={() => {
+                console.log('[Portfolio] Chat pressed', { symbol: item.symbol });
+                openPlaceholder('Chat', `Chat about ${item.symbol} (placeholder).`);
+              }}
+              activeOpacity={0.85}
+              testID={`portfolio-holding-chat-${item.symbol}`}
+            >
+              <MessageCircle size={16} color={colors.textSecondary} />
+            </TouchableOpacity>
+
+            <Text
+              style={[
+                styles.pnlValue,
+                Typography.bodyStrong,
+                Typography.monoNumber,
+                { color: item.pnl >= 0 ? colors.success : colors.danger, marginTop: 10 },
+              ]}
+            >
+              {item.pnl >= 0 ? '+' : ''}{formatCurrency(item.pnl)}
+            </Text>
+            <Text style={[styles.pnlPercent, { color: item.pnl >= 0 ? colors.success : colors.danger }]}>
+              {item.pnlPercent.toFixed(2)}%
+            </Text>
+          </View>
+        </View>
+
+        <View style={styles.itemRowSecondary}>
+          <Text style={[styles.ltpText, Typography.body, Typography.monoNumber, { color: colors.textSecondary }]}>
+            LTP {formatCurrency(item.ltp)}
+          </Text>
+          <Text style={[styles.dayChangeText, { color: item.dayChange >= 0 ? colors.success : colors.danger }]}>
+            ({item.dayChangePercent.toFixed(2)}%)
           </Text>
         </View>
-        <View style={styles.itemRightAlign}>
-          <Text style={[styles.pnlValue, Typography.bodyStrong, Typography.monoNumber, { color: item.pnl >= 0 ? colors.success : colors.danger }]}>
-             {item.pnl >= 0 ? '+' : ''}{formatCurrency(item.pnl)}
-          </Text>
-          <Text style={[styles.pnlPercent, { color: item.pnl >= 0 ? colors.success : colors.danger }]}>
-             {item.pnlPercent.toFixed(2)}%
-          </Text>
+
+        <View style={[styles.itemDivider, { backgroundColor: colors.border }]} />
+
+        <View style={styles.itemQuickRow}>
+          <TouchableOpacity
+            style={styles.itemQuickAction}
+            onPress={() => {
+              console.log('[Portfolio] Holding details pressed', { symbol: item.symbol });
+              router.push({ pathname: '/stock-detail' as any, params: { symbol: item.symbol } });
+            }}
+            activeOpacity={0.8}
+            testID={`portfolio-holding-details-${item.symbol}`}
+          >
+            <Text style={[styles.itemQuickText, { color: colors.tint }]}>Stock info</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.itemQuickAction}
+            onPress={() => openStockSheetForHolding(item)}
+            activeOpacity={0.8}
+            testID={`portfolio-holding-actions-${item.symbol}`}
+          >
+            <Text style={[styles.itemQuickText, { color: colors.textSecondary }]}>Actions</Text>
+          </TouchableOpacity>
         </View>
-      </View>
-      <View style={styles.itemRowSecondary}>
-        <Text style={[styles.ltpText, Typography.body, Typography.monoNumber, { color: colors.textSecondary }]}>
-          LTP {formatCurrency(item.ltp)}
-        </Text>
-        <Text style={[styles.dayChangeText, { color: item.dayChange >= 0 ? colors.success : colors.danger }]}>
-           ({item.dayChangePercent.toFixed(2)}%)
-        </Text>
-      </View>
-    </View>
-  );
+      </TouchableOpacity>
+    );
+  };
 
   const renderPositionItem = ({ item }: { item: Position }) => (
     <View style={[styles.itemContainer, { borderBottomColor: colors.border, backgroundColor: colors.background }]}>
@@ -234,58 +411,91 @@ export default function PortfolioScreen() {
       {/* Filter Bar */}
       {activeTab === 'holdings' && (
         <View style={[styles.filterBar, { borderBottomColor: colors.border, backgroundColor: colors.background }]}>
-           <View style={styles.filterLeft}>
-              <TouchableOpacity
-                style={styles.iconButton}
-                onPress={() => {
-                  console.log('[Portfolio] Search pressed');
-                }}
-                testID="portfolio-search"
-              >
-                 <Search size={20} color={colors.textSecondary} />
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.iconButton}
-                onPress={() => {
-                  console.log('[Portfolio] Filters pressed');
-                }}
-                testID="portfolio-filters"
-              >
-                 <SlidersHorizontal size={20} color={colors.textSecondary} />
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.chip, { backgroundColor: colors.surface }]}
-                onPress={() => {
-                  console.log('[Portfolio] Segment chip pressed');
-                }}
-                testID="portfolio-segment-chip"
-              >
-                 <Text style={[styles.chipText, { color: colors.tint }]}>Equity</Text>
-                 <ChevronDown size={14} color={colors.tint} style={{ marginLeft: 4 }} />
-              </TouchableOpacity>
-           </View>
-           <View style={styles.filterRight}>
-              <TouchableOpacity
-                style={styles.filterAction}
-                onPress={() => {
-                  console.log('[Portfolio] Family pressed');
-                }}
-                testID="portfolio-family"
-              >
-                 <Users size={18} color={colors.textSecondary} />
-                 <Text style={[styles.filterActionText, { color: colors.textSecondary }]}>Family</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.filterAction}
-                onPress={() => {
-                  console.log('[Portfolio] Analytics pressed');
-                }}
-                testID="portfolio-analytics"
-              >
-                 <PieChart size={18} color={colors.tint} />
-                 <Text style={[styles.filterActionText, { color: colors.tint }]}>Analytics</Text>
-              </TouchableOpacity>
-           </View>
+          <View style={styles.filterLeft}
+            testID="portfolio-holdings-toolbar"
+          >
+            <TouchableOpacity
+              style={styles.iconButton}
+              onPress={() => {
+                console.log('[Portfolio] Search pressed');
+                setSearchVisible((v) => !v);
+              }}
+              testID="portfolio-search"
+            >
+              <Search size={20} color={colors.textSecondary} />
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.iconButton}
+              onPress={() => {
+                console.log('[Portfolio] Filters pressed');
+                openPlaceholder('Filters', 'Holdings filters (placeholder).');
+              }}
+              testID="portfolio-filters"
+            >
+              <SlidersHorizontal size={20} color={colors.textSecondary} />
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.chip, { backgroundColor: colors.surface }]}
+              onPress={() => {
+                console.log('[Portfolio] Segment chip pressed');
+                openPlaceholder('Equity', 'Switch segment (placeholder).');
+              }}
+              testID="portfolio-segment-chip"
+            >
+              <Text style={[styles.chipText, { color: colors.tint }]}>Equity</Text>
+              <ChevronDown size={14} color={colors.tint} style={{ marginLeft: 4 }} />
+            </TouchableOpacity>
+          </View>
+          <View style={styles.filterRight}>
+            <TouchableOpacity
+              style={styles.filterAction}
+              onPress={() => {
+                console.log('[Portfolio] Family pressed');
+                openPlaceholder('Family', 'Family portfolio view (placeholder).');
+              }}
+              testID="portfolio-family"
+            >
+              <Users size={18} color={colors.textSecondary} />
+              <Text style={[styles.filterActionText, { color: colors.textSecondary }]}>Family</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.filterAction}
+              onPress={() => {
+                console.log('[Portfolio] Analytics pressed');
+                openPlaceholder('Analytics', 'Holdings analytics (placeholder).');
+              }}
+              testID="portfolio-analytics"
+            >
+              <PieChart size={18} color={colors.tint} />
+              <Text style={[styles.filterActionText, { color: colors.tint }]}>Analytics</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
+
+      {activeTab === 'holdings' && searchVisible && (
+        <View style={[styles.searchBar, { backgroundColor: colors.background, borderBottomColor: colors.border }]} testID="portfolio-searchbar">
+          <View style={[styles.searchField, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+            <Search size={16} color={colors.textSecondary} />
+            <TextInput
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+              placeholder="Search holdings"
+              placeholderTextColor={colors.textSecondary}
+              style={[styles.searchInput, { color: colors.text }]}
+              autoCapitalize="characters"
+              autoCorrect={false}
+              testID="portfolio-search-input"
+            />
+            <TouchableOpacity
+              style={styles.searchClear}
+              onPress={() => setSearchQuery('')}
+              testID="portfolio-search-clear"
+              disabled={!searchQuery}
+            >
+              <X size={16} color={searchQuery ? colors.textSecondary : colors.border} />
+            </TouchableOpacity>
+          </View>
         </View>
       )}
 
@@ -296,7 +506,7 @@ export default function PortfolioScreen() {
             <>
               {renderHoldingsTopSummary()}
               <FlatList
-                data={currentHoldings}
+                data={holdingList}
                 renderItem={renderHoldingItem}
                 keyExtractor={(item) => item.symbol}
                 contentContainerStyle={[styles.listContent, { paddingBottom: 96 }]}
@@ -324,18 +534,166 @@ export default function PortfolioScreen() {
         </View>
       )}
 
+      <StockQuickActionsSheet
+        visible={sheetVisible}
+        stock={selectedStock}
+        onClose={() => {
+          console.log('[Portfolio] Stock sheet closed');
+          setSheetVisible(false);
+          setSelectedStock(null);
+        }}
+      />
+
       {/* FAB */}
       <TouchableOpacity
-        style={[styles.fab, { backgroundColor: colors.surface, shadowColor: "#000", shadowOpacity: 0.1, shadowRadius: 4, elevation: 4 }]}
+        style={[
+          styles.fab,
+          { backgroundColor: colors.surface, shadowColor: '#000', shadowOpacity: 0.1, shadowRadius: 4, elevation: 4 },
+        ]}
         onPress={() => {
           console.log('[Portfolio] FAB pressed');
+          openFabMenu();
         }}
         testID="portfolio-fab"
         activeOpacity={0.85}
       >
-         <TrendingUp size={24} color={colors.text} />
+        <TrendingUp size={24} color={colors.text} />
       </TouchableOpacity>
+
+      <Modal
+        visible={fabMenuVisible}
+        transparent
+        animationType="none"
+        onRequestClose={closeFabMenu}
+        statusBarTranslucent
+      >
+        <Pressable style={styles.fabOverlay} onPress={closeFabMenu} testID="portfolio-fabmenu-backdrop">
+          <Animated.View style={[styles.fabBackdrop, { opacity: fabBackdrop }]} />
+        </Pressable>
+
+        <Animated.View
+          style={[
+            styles.fabMenu,
+            {
+              backgroundColor: colors.background,
+              borderColor: colors.border,
+              transform: [{ translateY: fabTranslate }],
+            },
+          ]}
+          testID="portfolio-fabmenu"
+        >
+          <Text style={[styles.fabMenuTitle, { color: colors.textSecondary }]} testID="portfolio-fabmenu-title">
+            Quick actions
+          </Text>
+
+          <View style={styles.fabMenuGrid}>
+            <FabMenuItem
+              icon={<Search size={18} color={colors.text} />}
+              label="Search"
+              onPress={() => {
+                console.log('[Portfolio] FAB Search pressed');
+                closeFabMenu();
+                setSearchVisible(true);
+              }}
+              colors={colors}
+              testID="portfolio-fabmenu-search"
+            />
+            <FabMenuItem
+              icon={<Settings size={18} color={colors.text} />}
+              label="Settings"
+              onPress={() => {
+                console.log('[Portfolio] FAB Settings pressed');
+                closeFabMenu();
+                router.push('/(tabs)/profile/settings' as any);
+              }}
+              colors={colors}
+              testID="portfolio-fabmenu-settings"
+            />
+            <FabMenuItem
+              icon={<BadgeIndianRupee size={18} color={colors.text} />}
+              label="Equity"
+              onPress={() => {
+                console.log('[Portfolio] FAB Equity pressed');
+                closeFabMenu();
+                openPlaceholder('Equity', 'Equity quick actions (placeholder).');
+              }}
+              colors={colors}
+              testID="portfolio-fabmenu-equity"
+            />
+            <FabMenuItem
+              icon={<Users size={18} color={colors.text} />}
+              label="Family"
+              onPress={() => {
+                console.log('[Portfolio] FAB Family pressed');
+                closeFabMenu();
+                openPlaceholder('Family', 'Family holdings (placeholder).');
+              }}
+              colors={colors}
+              testID="portfolio-fabmenu-family"
+            />
+            <FabMenuItem
+              icon={<PieChart size={18} color={colors.text} />}
+              label="Analytics"
+              onPress={() => {
+                console.log('[Portfolio] FAB Analytics pressed');
+                closeFabMenu();
+                openPlaceholder('Analytics', 'Portfolio analytics (placeholder).');
+              }}
+              colors={colors}
+              testID="portfolio-fabmenu-analytics"
+            />
+            <FabMenuItem
+              icon={<BarChart3 size={18} color={colors.text} />}
+              label="Market"
+              onPress={() => {
+                console.log('[Portfolio] FAB Market pressed');
+                closeFabMenu();
+                openPlaceholder('Market', 'Market overview (placeholder).');
+              }}
+              colors={colors}
+              testID="portfolio-fabmenu-market"
+            />
+          </View>
+
+          <TouchableOpacity
+            style={[styles.fabMenuClose, { backgroundColor: colors.surface, borderColor: colors.border }]}
+            onPress={closeFabMenu}
+            activeOpacity={0.8}
+            testID="portfolio-fabmenu-close"
+          >
+            <Text style={[styles.fabMenuCloseText, { color: colors.text }]}>Close</Text>
+          </TouchableOpacity>
+        </Animated.View>
+      </Modal>
     </SafeAreaView>
+  );
+}
+
+function FabMenuItem({
+  icon,
+  label,
+  onPress,
+  colors,
+  testID,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  onPress: () => void;
+  colors: (typeof Colors)['light'];
+  testID: string;
+}) {
+  return (
+    <TouchableOpacity
+      style={[styles.fabMenuItem, { backgroundColor: colors.surface, borderColor: colors.border }]}
+      onPress={onPress}
+      activeOpacity={0.85}
+      testID={testID}
+    >
+      <View style={styles.fabMenuIcon}>{icon}</View>
+      <Text style={[styles.fabMenuLabel, { color: colors.textSecondary }]} numberOfLines={1}>
+        {label}
+      </Text>
+    </TouchableOpacity>
   );
 }
 
@@ -392,6 +750,32 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderBottomWidth: 1,
+  },
+  searchBar: {
+    paddingHorizontal: 12,
+    paddingBottom: 10,
+    borderBottomWidth: 1,
+  },
+  searchField: {
+    height: 40,
+    borderRadius: 12,
+    borderWidth: 1,
+    paddingHorizontal: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  searchClear: {
+    width: 28,
+    height: 28,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   filterLeft: {
     flexDirection: 'row',
@@ -456,6 +840,66 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 2 },
     zIndex: 100,
   },
+  fabOverlay: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  fabBackdrop: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: '#000000',
+    opacity: 0.3,
+  },
+  fabMenu: {
+    position: 'absolute',
+    right: 16,
+    bottom: 92,
+    width: 280,
+    borderRadius: 18,
+    borderWidth: 1,
+    padding: 14,
+  },
+  fabMenuTitle: {
+    fontSize: 12,
+    fontWeight: '900',
+    letterSpacing: 0.6,
+    textTransform: 'uppercase',
+    marginBottom: 10,
+  },
+  fabMenuGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+  },
+  fabMenuItem: {
+    width: '48%',
+    borderRadius: 14,
+    borderWidth: 1,
+    paddingVertical: 12,
+    paddingHorizontal: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  fabMenuIcon: {
+    width: 22,
+    alignItems: 'center',
+  },
+  fabMenuLabel: {
+    flex: 1,
+    fontSize: 13,
+    fontWeight: '800',
+  },
+  fabMenuClose: {
+    marginTop: 12,
+    height: 44,
+    borderRadius: 14,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  fabMenuCloseText: {
+    fontSize: 14,
+    fontWeight: '900',
+  },
   tab: {
     flex: 1,
     paddingVertical: 14,
@@ -511,7 +955,69 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
-    marginBottom: 4,
+    marginBottom: 6,
+  },
+  itemTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  exchangeTag: {
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+    borderWidth: 1,
+  },
+  exchangeTagText: {
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 0.2,
+  },
+  itemName: {
+    marginTop: 2,
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  itemMetaRow: {
+    marginTop: 6,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  metaChip: {
+    fontSize: 11,
+    fontWeight: '700',
+    fontVariant: ['tabular-nums'],
+  },
+  metaDot: {
+    marginHorizontal: 6,
+    fontSize: 11,
+    fontWeight: '900',
+  },
+  chatButton: {
+    width: 34,
+    height: 34,
+    borderRadius: 10,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  itemDivider: {
+    height: 1,
+    marginTop: 12,
+  },
+  itemQuickRow: {
+    paddingTop: 10,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  itemQuickAction: {
+    paddingVertical: 6,
+    paddingHorizontal: 4,
+  },
+  itemQuickText: {
+    fontSize: 12,
+    fontWeight: '800',
+    letterSpacing: 0.2,
   },
   itemRowSecondary: {
     flexDirection: 'row',
