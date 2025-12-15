@@ -17,7 +17,7 @@ import {
 import { fetchPaytmMoneyQuotes, isPaytmMoneyConfigured } from '@/services/paytmMoneyService';
 import { usePaytmMoneyConfig } from '@/context/PaytmMoneyConfigContext';
 
-const REFRESH_INTERVAL = 10000; // Refresh every 10 seconds
+const REFRESH_INTERVAL = 8000; // Refresh every 8 seconds
 
 type ISTParts = {
   weekday: number; // 0=Sun ... 6=Sat
@@ -111,7 +111,7 @@ export const [MarketProvider, useMarket] = createContextHook(() => {
   });
 
   // Fetch real-time data from Paytm Money (if configured), fallback to Yahoo Finance
-  const fetchLiveData = useCallback(async () => {
+  const fetchLiveData = useCallback(async (reason: 'init' | 'interval' | 'manual' = 'manual') => {
     if (isFetchingRef.current) {
       console.log('[MarketContext] Already fetching, skipping...');
       return;
@@ -127,7 +127,7 @@ export const [MarketProvider, useMarket] = createContextHook(() => {
     lastFetchRef.current = now;
 
     try {
-      console.log('[MarketContext] Fetching live market data...');
+      console.log('[MarketContext] Fetching live market data...', { reason });
       
       const allSymbols = new Set<string>();
       stocks.forEach((s) => allSymbols.add(s.symbol));
@@ -146,6 +146,9 @@ export const [MarketProvider, useMarket] = createContextHook(() => {
         fetchStockQuotesWithProxy(rawSymbolsArray),
         fetchIndexQuotesWithProxy(),
       ]);
+
+      const upperYahooKeys = Object.keys(yahooStockQuotes).slice(0, 10);
+      console.log('[MarketContext] Sample Yahoo keys:', upperYahooKeys);
 
       const hasPaytm = Object.keys(paytmQuotes).length > 0;
       const hasYahooStocks = Object.keys(yahooStockQuotes).length > 0;
@@ -170,7 +173,7 @@ export const [MarketProvider, useMarket] = createContextHook(() => {
             isUp: (paytm.change as number) >= 0,
           };
         }
-        const yahoo = yahooStockQuotes[upper];
+        const yahoo = yahooStockQuotes[upper] ?? yahooStockQuotes[symbol] ?? yahooStockQuotes[symbol.toUpperCase()];
         if (yahoo) {
           return {
             price: yahoo.price,
@@ -270,14 +273,14 @@ export const [MarketProvider, useMarket] = createContextHook(() => {
   // Initial fetch on mount
   useEffect(() => {
     console.log('[MarketContext] Initial data fetch');
-    fetchLiveData();
+    fetchLiveData('init');
   }, [fetchLiveData]);
 
   // Periodic refresh
   useEffect(() => {
     const interval = setInterval(() => {
       console.log('[MarketContext] Periodic refresh');
-      fetchLiveData();
+      fetchLiveData('interval');
     }, REFRESH_INTERVAL);
 
     return () => clearInterval(interval);
@@ -433,7 +436,7 @@ export const [MarketProvider, useMarket] = createContextHook(() => {
 
   const refreshData = useCallback(() => {
     console.log('[MarketContext] Manual refresh triggered');
-    fetchLiveData();
+    fetchLiveData('manual');
   }, [fetchLiveData]);
 
   return {

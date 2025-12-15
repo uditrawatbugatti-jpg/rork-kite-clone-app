@@ -1,6 +1,13 @@
 
 
-const YAHOO_FINANCE_API = 'https://query1.finance.yahoo.com/v7/finance/quote';
+import { Platform } from 'react-native';
+
+const YAHOO_FINANCE_APIS = [
+  'https://query1.finance.yahoo.com/v7/finance/quote',
+  'https://query2.finance.yahoo.com/v7/finance/quote',
+] as const;
+
+const DEFAULT_TIMEOUT_MS = 7000;
 
 type YahooQuote = {
   symbol?: string;
@@ -80,61 +87,138 @@ const toLocalSymbolFromYahoo = (yahooSymbol: string | undefined): string | undef
   return sym;
 };
 
-// Fetch stock quotes from Yahoo Finance
-export async function fetchStockQuotes(symbols: string[]): Promise<Record<string, StockQuote>> {
+const withTimeout = async <T,>(fn: (signal: AbortSignal) => Promise<T>, timeoutMs: number): Promise<T> => {
+  const controller = new AbortController();
+  const id = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    const yahooSymbols = symbols
-      .map(toYahooSymbol)
-      .filter(Boolean) as string[];
-    
-    if (yahooSymbols.length === 0) {
-      console.log('[StockService] No valid symbols to fetch');
-      return {};
-    }
+    return await fn(controller.signal);
+  } finally {
+    clearTimeout(id);
+  }
+};
 
-    const symbolsParam = yahooSymbols.join(',');
-    const cacheBuster = Date.now();
-    const url = `${YAHOO_FINANCE_API}?symbols=${encodeURIComponent(symbolsParam)}&region=IN&lang=en-IN&formatted=false&_=${cacheBuster}`;
-    
-    console.log('[StockService] Fetching quotes for:', symbolsParam);
-    
+const getYahooHeaders = (): Record<string, string> => {
+  const base: Record<string, string> = {
+    Accept: 'application/json',
+    'Cache-Control': 'no-cache',
+    Pragma: 'no-cache',
+  };
+
+  if (Platform.OS !== 'web') {
+    base['User-Agent'] = 'Mozilla/5.0 (Mobile; Expo) AppleWebKit/537.36 (KHTML, like Gecko)';
+  }
+
+  return base;
+};
+
+const buildYahooQuoteUrls = (symbolsParam: string): string[] => {
+  const cacheBuster = Date.now();
+  return YAHOO_FINANCE_APIS.map(
+    (api) => `${api}?symbols=${encodeURIComponent(symbolsParam)}&region=IN&lang=en-IN&formatted=false&_=${cacheBuster}`,
+  );
+};
+
+const parseYahooQuotesToRecord = (data: any): Record<string, StockQuote> => {
+  const quotes: Record<string, StockQuote> = {};
+
+  if (data?.quoteResponse?.result) {
+    for (const quote of data.quoteResponse.result as YahooQuote[]) {
+      const localSymbol = toLocalSymbolFromYahoo(quote.symbol);
+      if (!localSymbol) continue;
+
+      const price = quote.regularMarketPrice ?? 0;
+      const previousClose = quote.regularMarketPreviousClose ?? price;
+      const change = quote.regularMarketChange ?? 0;
+      const changePercent = quote.regularMarketChangePercent ?? 0;
+
+      quotes[localSymbol.toUpperCase()] = {
+        symbol: localSymbol.toUpperCase(),
+        price: Math.round(price * 100) / 100,
+        change: Math.round(change * 100) / 100,
+        changePercent: Math.round(changePercent * 100) / 100,
+        previousClose: Math.round(previousClose * 100) / 100,
+        isUp: change >= 0,
+      };
+    }
+  }
+
+  return quotes;
+};
+
+const parseYahooIndicesToArray = (data: any): IndexQuote[] => {
+  const indices: IndexQuote[] = [];
+
+  if (data?.quoteResponse?.result) {
+    for (const quote of data.quoteResponse.result) {
+      const indexName = Object.entries(INDEX_SYMBOL_MAP).find(([, yahooSym]) => yahooSym === quote.symbol)?.[0];
+
+      if (indexName) {
+        const price = quote.regularMarketPrice || 0;
+        const change = quote.regularMarketChange || 0;
+        const changePercent = quote.regularMarketChangePercent || 0;
+
+        indices.push({
+          name: indexName,
+          price: Math.round(price * 100) / 100,
+          change: Math.round(change * 100) / 100,
+          changePercent: Math.round(changePercent * 100) / 100,
+          isUp: change >= 0,
+        });
+      }
+    }
+  }
+
+  return indices;
+};
+
+const tryFetchJson = async (url: string): Promise<any> => {
+  return await withTimeout(async (signal) => {
     const response = await fetch(url, {
-      headers: {
-        'Accept': 'application/json',
-      },
+      method: 'GET',
+      headers: getYahooHeaders(),
+      signal,
     });
 
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
     }
 
-    const data = await response.json();
-    const quotes: Record<string, StockQuote> = {};
+    return await response.json();
+  }, DEFAULT_TIMEOUT_MS);
+};
 
-    if (data.quoteResponse?.result) {
-      for (const quote of data.quoteResponse.result as YahooQuote[]) {
-        const localSymbol = toLocalSymbolFromYahoo(quote.symbol);
-        if (!localSymbol) continue;
+// Fetch stock quotes from Yahoo Finance
+export async function fetchStockQuotes(symbols: string[]): Promise<Record<string, StockQuote>> {
+  try {
+    const yahooSymbols = symbols.map(toYahooSymbol).filter(Boolean) as string[];
 
-        const price = quote.regularMarketPrice ?? 0;
-        const previousClose = quote.regularMarketPreviousClose ?? price;
-        const change = quote.regularMarketChange ?? 0;
-        const changePercent = quote.regularMarketChangePercent ?? 0;
+    if (yahooSymbols.length === 0) {
+      console.log('[StockService] No valid symbols to fetch');
+      return {};
+    }
 
-        quotes[localSymbol] = {
-          symbol: localSymbol,
-          price: Math.round(price * 100) / 100,
-          change: Math.round(change * 100) / 100,
-          changePercent: Math.round(changePercent * 100) / 100,
-          previousClose: Math.round(previousClose * 100) / 100,
-          isUp: change >= 0,
-        };
-        
-        console.log(`[StockService] ${localSymbol}: ₹${price.toFixed(2)} (${change >= 0 ? '+' : ''}${change.toFixed(2)})`);
+    const symbolsParam = yahooSymbols.join(',');
+    const urls = buildYahooQuoteUrls(symbolsParam);
+
+    console.log('[StockService] Fetching quotes for:', symbolsParam);
+
+    for (const url of urls) {
+      try {
+        const data = await tryFetchJson(url);
+        const quotes = parseYahooQuotesToRecord(data);
+        if (Object.keys(quotes).length > 0) {
+          for (const sym of Object.keys(quotes)) {
+            const q = quotes[sym];
+            console.log(`[StockService] ${sym}: ₹${q.price.toFixed(2)} (${q.change >= 0 ? '+' : ''}${q.change.toFixed(2)})`);
+          }
+          return quotes;
+        }
+      } catch (e) {
+        console.log('[StockService] Quote endpoint failed, trying next...', String((e as any)?.message ?? e));
       }
     }
 
-    return quotes;
+    return {};
   } catch (error) {
     console.error('[StockService] Error fetching stock quotes:', error);
     return {};
@@ -145,54 +229,33 @@ export async function fetchStockQuotes(symbols: string[]): Promise<Record<string
 export async function fetchIndexQuotes(): Promise<IndexQuote[]> {
   try {
     const yahooSymbols = Object.values(INDEX_SYMBOL_MAP).join(',');
-    const cacheBuster = Date.now();
-    const url = `${YAHOO_FINANCE_API}?symbols=${encodeURIComponent(yahooSymbols)}&region=IN&lang=en-IN&formatted=false&_=${cacheBuster}`;
-    
+    const urls = buildYahooQuoteUrls(yahooSymbols);
+
     console.log('[StockService] Fetching index quotes');
-    
-    const response = await fetch(url, {
-      headers: {
-        'Accept': 'application/json',
-      },
-    });
 
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
+    for (const url of urls) {
+      try {
+        const data = await tryFetchJson(url);
+        const indices = parseYahooIndicesToArray(data);
+        if (indices.length > 0) {
+          for (const idx of indices) {
+            console.log(
+              `[StockService] ${idx.name}: ${idx.price.toFixed(2)} (${idx.change >= 0 ? '+' : ''}${idx.change.toFixed(2)})`,
+            );
+          }
 
-    const data = await response.json();
-    const indices: IndexQuote[] = [];
-
-    if (data.quoteResponse?.result) {
-      for (const quote of data.quoteResponse.result) {
-        const indexName = Object.entries(INDEX_SYMBOL_MAP).find(
-          ([_, yahooSym]) => yahooSym === quote.symbol
-        )?.[0];
-
-        if (indexName) {
-          const price = quote.regularMarketPrice || 0;
-          const change = quote.regularMarketChange || 0;
-          const changePercent = quote.regularMarketChangePercent || 0;
-
-          indices.push({
-            name: indexName,
-            price: Math.round(price * 100) / 100,
-            change: Math.round(change * 100) / 100,
-            changePercent: Math.round(changePercent * 100) / 100,
-            isUp: change >= 0,
+          return indices.sort((a, b) => {
+            if (a.name === 'NIFTY 50') return -1;
+            if (b.name === 'NIFTY 50') return 1;
+            return 0;
           });
-          
-          console.log(`[StockService] ${indexName}: ${price.toFixed(2)} (${change >= 0 ? '+' : ''}${change.toFixed(2)})`);
         }
+      } catch (e) {
+        console.log('[StockService] Index endpoint failed, trying next...', String((e as any)?.message ?? e));
       }
     }
 
-    // Sort to ensure NIFTY 50 comes first
-    return indices.sort((a, b) => {
-      if (a.name === 'NIFTY 50') return -1;
-      if (b.name === 'NIFTY 50') return 1;
-      return 0;
-    });
+    return [];
   } catch (error) {
     console.error('[StockService] Error fetching index quotes:', error);
     return [];
@@ -207,63 +270,30 @@ const CORS_PROXIES = [
 
 export async function fetchStockQuotesWithProxy(symbols: string[]): Promise<Record<string, StockQuote>> {
   try {
-    const yahooSymbols = symbols
-      .map(toYahooSymbol)
-      .filter(Boolean) as string[];
-    
+    const yahooSymbols = symbols.map(toYahooSymbol).filter(Boolean) as string[];
+
     if (yahooSymbols.length === 0) {
       return {};
     }
 
     const symbolsParam = yahooSymbols.join(',');
-    const cacheBuster = Date.now();
-    const targetUrl = `${YAHOO_FINANCE_API}?symbols=${encodeURIComponent(symbolsParam)}&region=IN&lang=en-IN&formatted=false&_=${cacheBuster}`;
-    
-    // Try direct first, then proxies
-    const urls = [
+    const targetUrls = buildYahooQuoteUrls(symbolsParam);
+
+    const urls = targetUrls.flatMap((targetUrl) => [
       targetUrl,
-      ...CORS_PROXIES.map(proxy => `${proxy}${encodeURIComponent(targetUrl)}`),
-    ];
+      ...CORS_PROXIES.map((proxy) => `${proxy}${encodeURIComponent(targetUrl)}`),
+    ]);
 
     for (const url of urls) {
       try {
-        console.log('[StockService] Trying URL:', url.substring(0, 100));
-        
-        const response = await fetch(url, {
-          headers: {
-            'Accept': 'application/json',
-          },
-        });
+        console.log('[StockService] Trying URL:', url.substring(0, 120));
 
-        if (!response.ok) continue;
+        const data = await tryFetchJson(url);
+        const quotes = parseYahooQuotesToRecord(data);
 
-        const data = await response.json();
-        const quotes: Record<string, StockQuote> = {};
-
-        if (data.quoteResponse?.result) {
-          for (const quote of data.quoteResponse.result as YahooQuote[]) {
-            const localSymbol = toLocalSymbolFromYahoo(quote.symbol);
-            if (!localSymbol) continue;
-
-            const price = quote.regularMarketPrice ?? 0;
-            const previousClose = quote.regularMarketPreviousClose ?? price;
-            const change = quote.regularMarketChange ?? 0;
-            const changePercent = quote.regularMarketChangePercent ?? 0;
-
-            quotes[localSymbol] = {
-              symbol: localSymbol,
-              price: Math.round(price * 100) / 100,
-              change: Math.round(change * 100) / 100,
-              changePercent: Math.round(changePercent * 100) / 100,
-              previousClose: Math.round(previousClose * 100) / 100,
-              isUp: change >= 0,
-            };
-          }
-          
-          if (Object.keys(quotes).length > 0) {
-            console.log('[StockService] Successfully fetched', Object.keys(quotes).length, 'quotes');
-            return quotes;
-          }
+        if (Object.keys(quotes).length > 0) {
+          console.log('[StockService] Successfully fetched', Object.keys(quotes).length, 'quotes');
+          return quotes;
         }
       } catch {
         console.log('[StockService] URL failed, trying next...');
@@ -281,47 +311,20 @@ export async function fetchStockQuotesWithProxy(symbols: string[]): Promise<Reco
 export async function fetchIndexQuotesWithProxy(): Promise<IndexQuote[]> {
   try {
     const yahooSymbols = Object.values(INDEX_SYMBOL_MAP).join(',');
-    const cacheBuster = Date.now();
-    const targetUrl = `${YAHOO_FINANCE_API}?symbols=${encodeURIComponent(yahooSymbols)}&region=IN&lang=en-IN&formatted=false&_=${cacheBuster}`;
-    
-    const urls = [
+    const targetUrls = buildYahooQuoteUrls(yahooSymbols);
+
+    const urls = targetUrls.flatMap((targetUrl) => [
       targetUrl,
-      ...CORS_PROXIES.map(proxy => `${proxy}${encodeURIComponent(targetUrl)}`),
-    ];
+      ...CORS_PROXIES.map((proxy) => `${proxy}${encodeURIComponent(targetUrl)}`),
+    ]);
 
     for (const url of urls) {
       try {
-        const response = await fetch(url, {
-          headers: {
-            'Accept': 'application/json',
-          },
-        });
+        const data = await tryFetchJson(url);
+        const indices = parseYahooIndicesToArray(data);
 
-        if (!response.ok) continue;
-
-        const data = await response.json();
-        const indices: IndexQuote[] = [];
-
-        if (data.quoteResponse?.result) {
-          for (const quote of data.quoteResponse.result) {
-            const indexName = Object.entries(INDEX_SYMBOL_MAP).find(
-              ([_, yahooSym]) => yahooSym === quote.symbol
-            )?.[0];
-
-            if (indexName) {
-              indices.push({
-                name: indexName,
-                price: Math.round((quote.regularMarketPrice || 0) * 100) / 100,
-                change: Math.round((quote.regularMarketChange || 0) * 100) / 100,
-                changePercent: Math.round((quote.regularMarketChangePercent || 0) * 100) / 100,
-                isUp: (quote.regularMarketChange || 0) >= 0,
-              });
-            }
-          }
-
-          if (indices.length > 0) {
-            return indices.sort((a, b) => a.name === 'NIFTY 50' ? -1 : b.name === 'NIFTY 50' ? 1 : 0);
-          }
+        if (indices.length > 0) {
+          return indices.sort((a, b) => (a.name === 'NIFTY 50' ? -1 : b.name === 'NIFTY 50' ? 1 : 0));
         }
       } catch {
         continue;
