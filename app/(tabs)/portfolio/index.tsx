@@ -51,18 +51,53 @@ export default function PortfolioScreen() {
   const fabBackdrop = useRef(new Animated.Value(0)).current;
   const fabTranslate = useRef(new Animated.Value(20)).current;
 
+  const [filterModalVisible, setFilterModalVisible] = useState<boolean>(false);
+  const [equityDropdownVisible, setEquityDropdownVisible] = useState<boolean>(false);
+  const [familyModalVisible, setFamilyModalVisible] = useState<boolean>(false);
+  const [analyticsModalVisible, setAnalyticsModalVisible] = useState<boolean>(false);
+
+  const [selectedEquityType, setSelectedEquityType] = useState<'all' | 'equity' | 'mutualfunds'>('all');
+  const [selectedFilter, setSelectedFilter] = useState<'kite' | 'smallcase' | null>(null);
+  const [selectedSort, setSelectedSort] = useState<'alphabetically' | 'change' | 'ltp' | 'pnl_abs' | 'pnl_pct' | 'invested'>('alphabetically');
+  const [familyTab, setFamilyTab] = useState<'personal' | 'family'>('personal');
+  const [analyticsTab, setAnalyticsTab] = useState<'personal' | 'family'>('personal');
+
   // Use context data
   const currentHoldings = holdings;
 
   const holdingList = useMemo<Holding[]>(() => {
+    let filtered = currentHoldings;
+
     const q = searchQuery.trim().toLowerCase();
-    if (!q) return currentHoldings;
-    return currentHoldings.filter((h) => {
-      const meta = stocks.find((s) => s.symbol.toLowerCase() === h.symbol.toLowerCase());
-      const name = meta?.name ?? '';
-      return h.symbol.toLowerCase().includes(q) || name.toLowerCase().includes(q);
+    if (q) {
+      filtered = filtered.filter((h) => {
+        const meta = stocks.find((s) => s.symbol.toLowerCase() === h.symbol.toLowerCase());
+        const name = meta?.name ?? '';
+        return h.symbol.toLowerCase().includes(q) || name.toLowerCase().includes(q);
+      });
+    }
+
+    const sorted = [...filtered].sort((a, b) => {
+      switch (selectedSort) {
+        case 'alphabetically':
+          return a.symbol.localeCompare(b.symbol);
+        case 'change':
+          return b.dayChangePercent - a.dayChangePercent;
+        case 'ltp':
+          return b.ltp - a.ltp;
+        case 'pnl_abs':
+          return b.pnl - a.pnl;
+        case 'pnl_pct':
+          return b.pnlPercent - a.pnlPercent;
+        case 'invested':
+          return b.invested - a.invested;
+        default:
+          return 0;
+      }
     });
-  }, [currentHoldings, searchQuery, stocks]);
+
+    return sorted;
+  }, [currentHoldings, searchQuery, stocks, selectedSort]);
 
   const openPlaceholder = useCallback(
     (title: string, subtitle: string) => {
@@ -428,7 +463,7 @@ export default function PortfolioScreen() {
               style={styles.iconButton}
               onPress={() => {
                 console.log('[Portfolio] Filters pressed');
-                openPlaceholder('Filters', 'Holdings filters (placeholder).');
+                setFilterModalVisible(true);
               }}
               testID="portfolio-filters"
             >
@@ -438,11 +473,13 @@ export default function PortfolioScreen() {
               style={[styles.chip, { backgroundColor: colors.surface }]}
               onPress={() => {
                 console.log('[Portfolio] Segment chip pressed');
-                openPlaceholder('Equity', 'Switch segment (placeholder).');
+                setEquityDropdownVisible(true);
               }}
               testID="portfolio-segment-chip"
             >
-              <Text style={[styles.chipText, { color: colors.tint }]}>Equity</Text>
+              <Text style={[styles.chipText, { color: colors.tint }]}>
+                {selectedEquityType === 'all' ? 'All' : selectedEquityType === 'equity' ? 'Equity' : 'Mutual Funds'}
+              </Text>
               <ChevronDown size={14} color={colors.tint} style={{ marginLeft: 4 }} />
             </TouchableOpacity>
           </View>
@@ -451,7 +488,7 @@ export default function PortfolioScreen() {
               style={styles.filterAction}
               onPress={() => {
                 console.log('[Portfolio] Family pressed');
-                openPlaceholder('Family', 'Family portfolio view (placeholder).');
+                setFamilyModalVisible(true);
               }}
               testID="portfolio-family"
             >
@@ -462,7 +499,7 @@ export default function PortfolioScreen() {
               style={styles.filterAction}
               onPress={() => {
                 console.log('[Portfolio] Analytics pressed');
-                openPlaceholder('Analytics', 'Holdings analytics (placeholder).');
+                setAnalyticsModalVisible(true);
               }}
               testID="portfolio-analytics"
             >
@@ -626,7 +663,7 @@ export default function PortfolioScreen() {
               onPress={() => {
                 console.log('[Portfolio] FAB Family pressed');
                 closeFabMenu();
-                openPlaceholder('Family', 'Family holdings (placeholder).');
+                setFamilyModalVisible(true);
               }}
               colors={colors}
               testID="portfolio-fabmenu-family"
@@ -637,7 +674,7 @@ export default function PortfolioScreen() {
               onPress={() => {
                 console.log('[Portfolio] FAB Analytics pressed');
                 closeFabMenu();
-                openPlaceholder('Analytics', 'Portfolio analytics (placeholder).');
+                setAnalyticsModalVisible(true);
               }}
               colors={colors}
               testID="portfolio-fabmenu-analytics"
@@ -664,6 +701,388 @@ export default function PortfolioScreen() {
             <Text style={[styles.fabMenuCloseText, { color: colors.text }]}>Close</Text>
           </TouchableOpacity>
         </Animated.View>
+      </Modal>
+
+      {/* Filter Modal */}
+      <Modal
+        visible={filterModalVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setFilterModalVisible(false)}
+      >
+        <Pressable style={styles.modalOverlay} onPress={() => setFilterModalVisible(false)}>
+          <View style={styles.modalOverlayBackdrop} />
+        </Pressable>
+        <View style={[styles.filterModal, { backgroundColor: colors.background }]}>
+          <View style={[styles.filterModalHeader, { borderBottomColor: colors.border }]}>
+            <Text style={[styles.filterModalTitle, { color: colors.text }]}>Filter</Text>
+            <TouchableOpacity
+              onPress={() => {
+                setSelectedFilter(null);
+                setSelectedSort('alphabetically');
+              }}
+            >
+              <Text style={[styles.clearText, { color: colors.tint }]}>CLEAR</Text>
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.filterModalContent}>
+            <View style={styles.filterRow}>
+              <TouchableOpacity
+                style={[
+                  styles.filterChip,
+                  { borderColor: colors.border, backgroundColor: selectedFilter === 'kite' ? colors.tint : colors.background },
+                ]}
+                onPress={() => setSelectedFilter(selectedFilter === 'kite' ? null : 'kite')}
+              >
+                <Text style={[styles.filterChipText, { color: selectedFilter === 'kite' ? '#fff' : colors.text }]}>KITE</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[
+                  styles.filterChip,
+                  { borderColor: colors.border, backgroundColor: selectedFilter === 'smallcase' ? colors.tint : colors.background },
+                ]}
+                onPress={() => setSelectedFilter(selectedFilter === 'smallcase' ? null : 'smallcase')}
+              >
+                <Text style={[styles.filterChipText, { color: selectedFilter === 'smallcase' ? '#fff' : colors.text }]}>SMALLCASE</Text>
+              </TouchableOpacity>
+            </View>
+
+            <Text style={[styles.filterSectionTitle, { color: colors.text }]}>Sort</Text>
+
+            <TouchableOpacity
+              style={[styles.sortOption, { borderBottomColor: colors.border }]}
+              onPress={() => {
+                setSelectedSort('alphabetically');
+                setFilterModalVisible(false);
+              }}
+            >
+              <Text style={[styles.sortOptionLabel, { color: colors.textSecondary }]}>A-Z</Text>
+              <Text style={[styles.sortOptionText, { color: colors.text }]}>Alphabetically</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.sortOption, { borderBottomColor: colors.border }]}
+              onPress={() => {
+                setSelectedSort('change');
+                setFilterModalVisible(false);
+              }}
+            >
+              <Text style={[styles.sortOptionLabel, { color: colors.textSecondary }]}>%</Text>
+              <Text style={[styles.sortOptionText, { color: colors.text }]}>Change</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.sortOption, { borderBottomColor: colors.border }]}
+              onPress={() => {
+                setSelectedSort('ltp');
+                setFilterModalVisible(false);
+              }}
+            >
+              <Text style={[styles.sortOptionLabel, { color: colors.textSecondary }]}>LTP</Text>
+              <Text style={[styles.sortOptionText, { color: colors.text }]}>Last Traded Price</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.sortOption, { borderBottomColor: colors.border }]}
+              onPress={() => {
+                setSelectedSort('pnl_abs');
+                setFilterModalVisible(false);
+              }}
+            >
+              <Text style={[styles.sortOptionLabel, { color: colors.textSecondary }]}>P&L</Text>
+              <Text style={[styles.sortOptionText, { color: colors.text }]}>Profit & Loss <Text style={{ color: colors.textSecondary }}>Absolute</Text></Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.sortOption, { borderBottomColor: colors.border }]}
+              onPress={() => {
+                setSelectedSort('pnl_pct');
+                setFilterModalVisible(false);
+              }}
+            >
+              <Text style={[styles.sortOptionLabel, { color: colors.textSecondary }]}>%</Text>
+              <Text style={[styles.sortOptionText, { color: colors.text }]}>Profit & Loss <Text style={{ color: colors.textSecondary }}>Percent</Text></Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.sortOption]}
+              onPress={() => {
+                setSelectedSort('invested');
+                setFilterModalVisible(false);
+              }}
+            >
+              <Text style={[styles.sortOptionLabel, { color: colors.textSecondary }]}>₹</Text>
+              <Text style={[styles.sortOptionText, { color: colors.text }]}>Invested</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Equity Dropdown Modal */}
+      <Modal
+        visible={equityDropdownVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setEquityDropdownVisible(false)}
+      >
+        <Pressable style={styles.dropdownOverlay} onPress={() => setEquityDropdownVisible(false)}>
+          <View style={[styles.equityDropdown, { backgroundColor: colors.background, borderColor: colors.border }]}>
+            <TouchableOpacity
+              style={[
+                styles.equityOption,
+                selectedEquityType === 'all' && { backgroundColor: colors.surface },
+                { borderBottomColor: colors.border },
+              ]}
+              onPress={() => {
+                setSelectedEquityType('all');
+                setEquityDropdownVisible(false);
+              }}
+            >
+              <Text style={[styles.equityOptionText, { color: colors.text }]}>All</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[
+                styles.equityOption,
+                selectedEquityType === 'equity' && { backgroundColor: colors.surface },
+                { borderBottomColor: colors.border },
+              ]}
+              onPress={() => {
+                setSelectedEquityType('equity');
+                setEquityDropdownVisible(false);
+              }}
+            >
+              <Text style={[styles.equityOptionText, { color: colors.text }]}>Equity</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[
+                styles.equityOption,
+                selectedEquityType === 'mutualfunds' && { backgroundColor: colors.surface },
+              ]}
+              onPress={() => {
+                setSelectedEquityType('mutualfunds');
+                setEquityDropdownVisible(false);
+              }}
+            >
+              <Text style={[styles.equityOptionText, { color: colors.text }]}>Mutual Funds</Text>
+            </TouchableOpacity>
+          </View>
+        </Pressable>
+      </Modal>
+
+      {/* Family Modal */}
+      <Modal
+        visible={familyModalVisible}
+        animationType="slide"
+        onRequestClose={() => setFamilyModalVisible(false)}
+      >
+        <SafeAreaView style={[styles.fullModal, { backgroundColor: colors.background }]} edges={['top']}>
+          <View style={[styles.fullModalHeader, { borderBottomColor: colors.border }]}>
+            <TouchableOpacity onPress={() => setFamilyModalVisible(false)} style={styles.modalCloseButton}>
+              <X size={24} color={colors.text} />
+            </TouchableOpacity>
+            <Text style={[styles.fullModalTitle, { color: colors.text }]}>Family</Text>
+            <View style={styles.modalHeaderRight}>
+              <View style={[styles.familyIcon, { backgroundColor: colors.tint }]}>
+                <Users size={18} color="#fff" />
+              </View>
+            </View>
+          </View>
+
+          <View style={[styles.familyHeaderCard, { backgroundColor: colors.background }]}>
+            <View style={[styles.familyIconLarge, { backgroundColor: colors.tint }]}>
+              <Users size={20} color="#fff" />
+            </View>
+            <Text style={[styles.familyHeaderTitle, { color: colors.text }]}>
+              {familyTab === 'family' ? 'Family holdings' : 'Holdings'}
+            </Text>
+          </View>
+
+          <View style={[styles.familyDateChip, { backgroundColor: colors.surface }]}>
+            <Text style={[styles.familyDateText, { color: colors.textSecondary }]}>2025-12-15</Text>
+          </View>
+
+          <View style={styles.familyTagsRow}>
+            <View style={[styles.familyTag, { backgroundColor: '#E8D4FF' }]}>
+              <Text style={[styles.familyTagText, { color: '#7C3AED' }]}>Equity</Text>
+            </View>
+            <View style={[styles.familyTag, { backgroundColor: '#E8D4FF' }]}>
+              <Text style={[styles.familyTagText, { color: '#7C3AED' }]}>Debt</Text>
+            </View>
+            <View style={[styles.familyTag, { backgroundColor: '#E8D4FF' }]}>
+              <Text style={[styles.familyTagText, { color: '#7C3AED' }]}>Equity (MF)</Text>
+            </View>
+            <View style={[styles.familyTag, { backgroundColor: colors.surface }]}>
+              <Text style={[styles.familyTagText, { color: colors.tint }]}>+ 3 tags</Text>
+            </View>
+          </View>
+
+          <View style={[styles.familyTabs, { borderBottomColor: colors.border }]}>
+            <TouchableOpacity
+              style={[styles.familyTab, familyTab === 'personal' && { borderBottomColor: colors.tint, borderBottomWidth: 2 }]}
+              onPress={() => setFamilyTab('personal')}
+            >
+              <Text style={[styles.familyTabText, { color: familyTab === 'personal' ? colors.tint : colors.textSecondary }]}>Personal</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.familyTab, familyTab === 'family' && { borderBottomColor: colors.tint, borderBottomWidth: 2 }]}
+              onPress={() => setFamilyTab('family')}
+            >
+              <Text style={[styles.familyTabText, { color: familyTab === 'family' ? colors.tint : colors.textSecondary }]}>Family</Text>
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.familyContent}>
+            {familyTab === 'family' ? (
+              <View style={styles.familyEmptyState}>
+                <View style={styles.familyEmptyIllustration}>
+                  <View style={styles.familyAccountsBox}>
+                    <View style={styles.familyAccountAvatar1}>
+                      <Users size={20} color="#fff" />
+                    </View>
+                    <View style={styles.familyWaveLine1} />
+                    <View style={styles.familyAccountAvatar2}>
+                      <Users size={16} color="#fff" />
+                    </View>
+                    <View style={styles.familyWaveLine2} />
+                  </View>
+                  <View style={styles.familyAnalyticsPreview}>
+                    <PieChart size={48} color={colors.tint} />
+                    <Text style={[styles.analyticsLabel, { color: colors.textSecondary, marginTop: 8 }]}>Analytics</Text>
+                  </View>
+                  <BarChart3 size={60} color={colors.tint} style={{ marginTop: 16, opacity: 0.5 }} />
+                </View>
+                <Text style={[styles.familyEmptyText, { color: colors.text }]}>
+                  You don&apos;t have sub-accounts added to your family.
+                </Text>
+                <TouchableOpacity>
+                  <Text style={[styles.familyEmptyLink, { color: colors.tint }]}>Learn more.</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={[styles.familyLinkButton, { backgroundColor: colors.tint }]}>
+                  <Text style={styles.familyLinkButtonText}>Link a sub-account</Text>
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <View style={styles.familyEmptyState}>
+                <View style={styles.familyReportEmpty}>
+                  <View style={[styles.reportCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+                    <View style={[styles.reportIcon, { backgroundColor: colors.tint }]}>
+                      <PieChart size={32} color="#fff" />
+                    </View>
+                    <View style={styles.reportLines}>
+                      <View style={[styles.reportLine, { backgroundColor: colors.tint }]} />
+                      <View style={[styles.reportLine, { backgroundColor: colors.border, width: '60%' }]} />
+                    </View>
+                    <View style={styles.reportDots}>
+                      {[0, 1, 2, 3, 4, 5].map((i) => (
+                        <View key={i} style={[styles.reportDot, { backgroundColor: colors.border }]} />
+                      ))}
+                    </View>
+                  </View>
+                  <View style={styles.reportChart}>
+                    <View style={[styles.chartWave, { backgroundColor: '#F59E0B' }]} />
+                  </View>
+                </View>
+                <Text style={[styles.familyEmptyTitle, { color: colors.text }]}>Report&apos;s empty</Text>
+                <Text style={[styles.familyEmptySubtitle, { color: colors.textSecondary }]}>
+                  Buy stocks & ETFs on Kite or transfer your holdings from any broker to Zerodha and easily add your purchase value.{' '}
+                  <Text style={{ color: colors.tint }}>Learn more.</Text>
+                </Text>
+              </View>
+            )}
+          </View>
+        </SafeAreaView>
+      </Modal>
+
+      {/* Analytics Modal */}
+      <Modal
+        visible={analyticsModalVisible}
+        animationType="slide"
+        onRequestClose={() => setAnalyticsModalVisible(false)}
+      >
+        <SafeAreaView style={[styles.fullModal, { backgroundColor: colors.background }]} edges={['top']}>
+          <View style={[styles.fullModalHeader, { borderBottomColor: colors.border }]}>
+            <TouchableOpacity onPress={() => setAnalyticsModalVisible(false)} style={styles.modalCloseButton}>
+              <X size={24} color={colors.text} />
+            </TouchableOpacity>
+            <Text style={[styles.fullModalTitle, { color: colors.text }]}>Analytics</Text>
+            <View style={styles.modalHeaderRight}>
+              <View style={[styles.familyIcon, { backgroundColor: colors.tint }]}>
+                <PieChart size={18} color="#fff" />
+              </View>
+            </View>
+          </View>
+
+          <View style={[styles.familyHeaderCard, { backgroundColor: colors.background }]}>
+            <View style={[styles.familyIconLarge, { backgroundColor: colors.tint }]}>
+              <PieChart size={20} color="#fff" />
+            </View>
+            <Text style={[styles.familyHeaderTitle, { color: colors.text }]}>Holdings</Text>
+          </View>
+
+          <View style={[styles.familyDateChip, { backgroundColor: colors.surface }]}>
+            <Text style={[styles.familyDateText, { color: colors.textSecondary }]}>2025-12-15</Text>
+          </View>
+
+          <View style={styles.familyTagsRow}>
+            <View style={[styles.familyTag, { backgroundColor: '#E8D4FF' }]}>
+              <Text style={[styles.familyTagText, { color: '#7C3AED' }]}>Equity</Text>
+            </View>
+            <View style={[styles.familyTag, { backgroundColor: '#E8D4FF' }]}>
+              <Text style={[styles.familyTagText, { color: '#7C3AED' }]}>Debt</Text>
+            </View>
+            <View style={[styles.familyTag, { backgroundColor: '#E8D4FF' }]}>
+              <Text style={[styles.familyTagText, { color: '#7C3AED' }]}>Equity (MF)</Text>
+            </View>
+            <View style={[styles.familyTag, { backgroundColor: colors.surface }]}>
+              <Text style={[styles.familyTagText, { color: colors.tint }]}>+ 3 tags</Text>
+            </View>
+          </View>
+
+          <View style={[styles.familyTabs, { borderBottomColor: colors.border }]}>
+            <TouchableOpacity
+              style={[styles.familyTab, analyticsTab === 'personal' && { borderBottomColor: colors.tint, borderBottomWidth: 2 }]}
+              onPress={() => setAnalyticsTab('personal')}
+            >
+              <Text style={[styles.familyTabText, { color: analyticsTab === 'personal' ? colors.tint : colors.textSecondary }]}>Personal</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.familyTab, analyticsTab === 'family' && { borderBottomColor: colors.tint, borderBottomWidth: 2 }]}
+              onPress={() => setAnalyticsTab('family')}
+            >
+              <Text style={[styles.familyTabText, { color: analyticsTab === 'family' ? colors.tint : colors.textSecondary }]}>Family</Text>
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.familyContent}>
+            <View style={styles.familyEmptyState}>
+              <View style={styles.familyReportEmpty}>
+                <View style={[styles.reportCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+                  <View style={[styles.reportIcon, { backgroundColor: colors.tint }]}>
+                    <PieChart size={32} color="#fff" />
+                  </View>
+                  <View style={styles.reportLines}>
+                    <View style={[styles.reportLine, { backgroundColor: colors.tint }]} />
+                    <View style={[styles.reportLine, { backgroundColor: colors.border, width: '60%' }]} />
+                  </View>
+                  <View style={styles.reportDots}>
+                    {[0, 1, 2, 3, 4, 5].map((i) => (
+                      <View key={i} style={[styles.reportDot, { backgroundColor: colors.border }]} />
+                    ))}
+                  </View>
+                </View>
+                <View style={styles.reportChart}>
+                  <View style={[styles.chartWave, { backgroundColor: '#F59E0B' }]} />
+                </View>
+              </View>
+              <Text style={[styles.familyEmptyTitle, { color: colors.text }]}>Report&apos;s empty</Text>
+              <Text style={[styles.familyEmptySubtitle, { color: colors.textSecondary }]}>
+                Buy stocks & ETFs on Kite or transfer your holdings from any broker to Zerodha and easily add your purchase value.{' '}
+                <Text style={{ color: colors.tint }}>Learn more.</Text>
+              </Text>
+            </View>
+          </View>
+        </SafeAreaView>
       </Modal>
     </SafeAreaView>
   );
@@ -1064,5 +1483,321 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: '600',
   },
-
+  modalOverlay: {
+    flex: 1,
+  },
+  modalOverlayBackdrop: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+  },
+  filterModal: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    paddingBottom: 34,
+  },
+  filterModalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+  },
+  filterModalTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+  },
+  clearText: {
+    fontSize: 13,
+    fontWeight: '700',
+    letterSpacing: 0.5,
+  },
+  filterModalContent: {
+    paddingHorizontal: 20,
+    paddingTop: 20,
+  },
+  filterRow: {
+    flexDirection: 'row',
+    gap: 12,
+    marginBottom: 24,
+  },
+  filterChip: {
+    paddingHorizontal: 24,
+    paddingVertical: 10,
+    borderRadius: 8,
+    borderWidth: 1,
+  },
+  filterChipText: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  filterSectionTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    marginBottom: 16,
+  },
+  sortOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    gap: 12,
+  },
+  sortOptionLabel: {
+    fontSize: 14,
+    fontWeight: '700',
+    width: 40,
+  },
+  sortOptionText: {
+    fontSize: 15,
+    fontWeight: '500',
+  },
+  dropdownOverlay: {
+    flex: 1,
+  },
+  equityDropdown: {
+    position: 'absolute',
+    top: 180,
+    left: 20,
+    width: 200,
+    borderRadius: 12,
+    borderWidth: 1,
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  equityOption: {
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    borderBottomWidth: 1,
+  },
+  equityOptionText: {
+    fontSize: 15,
+    fontWeight: '500',
+  },
+  fullModal: {
+    flex: 1,
+  },
+  fullModalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+  },
+  modalCloseButton: {
+    padding: 4,
+  },
+  fullModalTitle: {
+    flex: 1,
+    fontSize: 18,
+    fontWeight: '700',
+    textAlign: 'center',
+  },
+  modalHeaderRight: {
+    width: 32,
+    alignItems: 'flex-end',
+  },
+  familyIcon: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  familyHeaderCard: {
+    alignItems: 'center',
+    paddingVertical: 20,
+  },
+  familyIconLarge: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 8,
+  },
+  familyHeaderTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  familyDateChip: {
+    alignSelf: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 8,
+    borderRadius: 20,
+    marginBottom: 16,
+  },
+  familyDateText: {
+    fontSize: 13,
+    fontWeight: '500',
+  },
+  familyTagsRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    paddingHorizontal: 16,
+    marginBottom: 16,
+  },
+  familyTag: {
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    borderRadius: 16,
+  },
+  familyTagText: {
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  familyTabs: {
+    flexDirection: 'row',
+    borderBottomWidth: 1,
+  },
+  familyTab: {
+    flex: 1,
+    paddingVertical: 14,
+    alignItems: 'center',
+  },
+  familyTabText: {
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  familyContent: {
+    flex: 1,
+  },
+  familyEmptyState: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 32,
+  },
+  familyEmptyIllustration: {
+    alignItems: 'center',
+    marginBottom: 24,
+  },
+  familyAccountsBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  familyAccountAvatar1: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: '#F59E0B',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  familyWaveLine1: {
+    width: 60,
+    height: 2,
+    backgroundColor: '#F59E0B',
+    marginHorizontal: 8,
+  },
+  familyAccountAvatar2: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#8B5CF6',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  familyWaveLine2: {
+    width: 50,
+    height: 2,
+    backgroundColor: '#8B5CF6',
+    marginLeft: 8,
+  },
+  familyAnalyticsPreview: {
+    alignItems: 'center',
+  },
+  analyticsLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  familyEmptyText: {
+    fontSize: 15,
+    fontWeight: '500',
+    textAlign: 'center',
+    marginBottom: 8,
+  },
+  familyEmptyLink: {
+    fontSize: 15,
+    fontWeight: '600',
+    marginBottom: 24,
+  },
+  familyLinkButton: {
+    paddingHorizontal: 32,
+    paddingVertical: 14,
+    borderRadius: 8,
+  },
+  familyLinkButtonText: {
+    color: '#fff',
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  familyReportEmpty: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 24,
+    gap: 16,
+  },
+  reportCard: {
+    width: 140,
+    height: 100,
+    borderRadius: 12,
+    borderWidth: 1,
+    padding: 12,
+    justifyContent: 'space-between',
+  },
+  reportIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  reportLines: {
+    gap: 4,
+  },
+  reportLine: {
+    height: 6,
+    borderRadius: 3,
+  },
+  reportDots: {
+    flexDirection: 'row',
+    gap: 4,
+  },
+  reportDot: {
+    width: 4,
+    height: 4,
+    borderRadius: 2,
+  },
+  reportChart: {
+    width: 100,
+    height: 80,
+    justifyContent: 'flex-end',
+  },
+  chartWave: {
+    height: 40,
+    borderTopLeftRadius: 8,
+    borderTopRightRadius: 8,
+  },
+  familyEmptyTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    marginBottom: 12,
+  },
+  familyEmptySubtitle: {
+    fontSize: 14,
+    fontWeight: '400',
+    textAlign: 'center',
+    lineHeight: 20,
+  },
 });
