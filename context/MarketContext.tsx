@@ -17,7 +17,7 @@ import {
 import { fetchPaytmMoneyQuotes, isPaytmMoneyConfigured } from '@/services/paytmMoneyService';
 import { usePaytmMoneyConfig } from '@/context/PaytmMoneyConfigContext';
 
-const REFRESH_INTERVAL = 8000; // Refresh every 8 seconds
+const REFRESH_INTERVAL = 2000; // Refresh every 2 seconds
 
 type ISTParts = {
   weekday: number; // 0=Sun ... 6=Sat
@@ -118,7 +118,7 @@ export const [MarketProvider, useMarket] = createContextHook(() => {
     }
 
     const now = Date.now();
-    if (now - lastFetchRef.current < 5000) {
+    if (now - lastFetchRef.current < 1500) {
       console.log('[MarketContext] Too soon to fetch again');
       return;
     }
