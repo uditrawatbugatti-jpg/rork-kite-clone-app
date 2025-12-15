@@ -10,6 +10,7 @@ export default function OrdersLayout() {
   return (
     <Stack
       screenOptions={{
+        headerShown: false,
         headerStyle: {
           backgroundColor: colors.background,
         },

@@ -10,6 +10,7 @@ export default function PortfolioLayout() {
   return (
     <Stack
       screenOptions={{
+        headerShown: false,
         headerStyle: {
           backgroundColor: colors.background,
         },
