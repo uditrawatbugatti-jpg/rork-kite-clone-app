@@ -106,32 +106,12 @@ export default function PortfolioScreen() {
     [router],
   );
 
-  const getStockFromHolding = useCallback(
-    (holding: Holding): Stock => {
-      const fromList = stocks.find((s) => s.symbol === holding.symbol);
-      if (fromList) return fromList;
-
-      return {
-        symbol: holding.symbol,
-        name: holding.symbol,
-        price: holding.ltp,
-        change: holding.dayChange,
-        changePercent: holding.dayChangePercent,
-        exchange: 'NSE',
-        isUp: holding.dayChange >= 0,
-      };
-    },
-    [stocks],
-  );
-
-  const openStockSheetForHolding = useCallback(
+  const openStockDetails = useCallback(
     (holding: Holding) => {
-      const stock = getStockFromHolding(holding);
-      console.log('[Portfolio] Open stock sheet', { symbol: stock.symbol });
-      setSelectedStock(stock);
-      setSheetVisible(true);
+      console.log('[Portfolio] Navigate to stock details', { symbol: holding.symbol });
+      router.push({ pathname: '/stock-detail' as any, params: { symbol: holding.symbol } });
     },
-    [getStockFromHolding],
+    [router],
   );
 
   const closeFabMenu = useCallback(() => {
@@ -277,7 +257,7 @@ export default function PortfolioScreen() {
       <TouchableOpacity
         style={[styles.itemContainer, { borderBottomColor: colors.border, backgroundColor: colors.background }]}
         activeOpacity={0.8}
-        onPress={() => openStockSheetForHolding(item)}
+        onPress={() => openStockDetails(item)}
         testID={`portfolio-holding-row-${item.symbol}`}
       >
         <View style={styles.itemRow}>
@@ -344,31 +324,6 @@ export default function PortfolioScreen() {
           <Text style={[styles.dayChangeText, { color: item.dayChange >= 0 ? colors.success : colors.danger }]}>
             ({item.dayChangePercent.toFixed(2)}%)
           </Text>
-        </View>
-
-        <View style={[styles.itemDivider, { backgroundColor: colors.border }]} />
-
-        <View style={styles.itemQuickRow}>
-          <TouchableOpacity
-            style={styles.itemQuickAction}
-            onPress={() => {
-              console.log('[Portfolio] Holding details pressed', { symbol: item.symbol });
-              router.push({ pathname: '/stock-detail' as any, params: { symbol: item.symbol } });
-            }}
-            activeOpacity={0.8}
-            testID={`portfolio-holding-details-${item.symbol}`}
-          >
-            <Text style={[styles.itemQuickText, { color: colors.tint }]}>Stock info</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={styles.itemQuickAction}
-            onPress={() => openStockSheetForHolding(item)}
-            activeOpacity={0.8}
-            testID={`portfolio-holding-actions-${item.symbol}`}
-          >
-            <Text style={[styles.itemQuickText, { color: colors.textSecondary }]}>Actions</Text>
-          </TouchableOpacity>
         </View>
       </TouchableOpacity>
     );
