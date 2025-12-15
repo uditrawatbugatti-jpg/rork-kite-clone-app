@@ -7,7 +7,7 @@ const YAHOO_FINANCE_APIS = [
   'https://query2.finance.yahoo.com/v7/finance/quote',
 ] as const;
 
-const DEFAULT_TIMEOUT_MS = 7000;
+const DEFAULT_TIMEOUT_MS = 10000;
 
 type YahooQuote = {
   symbol?: string;
@@ -131,14 +131,16 @@ const parseYahooQuotesToRecord = (data: any): Record<string, StockQuote> => {
       const change = quote.regularMarketChange ?? 0;
       const changePercent = quote.regularMarketChangePercent ?? 0;
 
-      quotes[localSymbol.toUpperCase()] = {
-        symbol: localSymbol.toUpperCase(),
-        price: Math.round(price * 100) / 100,
-        change: Math.round(change * 100) / 100,
-        changePercent: Math.round(changePercent * 100) / 100,
-        previousClose: Math.round(previousClose * 100) / 100,
-        isUp: change >= 0,
-      };
+      if (price > 0) {
+        quotes[localSymbol.toUpperCase()] = {
+          symbol: localSymbol.toUpperCase(),
+          price: Math.round(price * 100) / 100,
+          change: Math.round(change * 100) / 100,
+          changePercent: Math.round(changePercent * 100) / 100,
+          previousClose: Math.round(previousClose * 100) / 100,
+          isUp: change >= 0,
+        };
+      }
     }
   }
 
@@ -264,8 +266,9 @@ export async function fetchIndexQuotes(): Promise<IndexQuote[]> {
 
 // Alternative: Use a CORS proxy for web compatibility
 const CORS_PROXIES = [
-  'https://api.allorigins.win/raw?url=',
   'https://corsproxy.io/?',
+  'https://api.allorigins.win/raw?url=',
+  'https://api.codetabs.com/v1/proxy?quest=',
 ];
 
 export async function fetchStockQuotesWithProxy(symbols: string[]): Promise<Record<string, StockQuote>> {
@@ -273,8 +276,11 @@ export async function fetchStockQuotesWithProxy(symbols: string[]): Promise<Reco
     const yahooSymbols = symbols.map(toYahooSymbol).filter(Boolean) as string[];
 
     if (yahooSymbols.length === 0) {
+      console.log('[StockService] No valid symbols provided');
       return {};
     }
+
+    console.log('[StockService] Fetching quotes for symbols:', yahooSymbols.slice(0, 5).join(', '), '...');
 
     const symbolsParam = yahooSymbols.join(',');
     const targetUrls = buildYahooQuoteUrls(symbolsParam);
@@ -286,24 +292,33 @@ export async function fetchStockQuotesWithProxy(symbols: string[]): Promise<Reco
 
     for (const url of urls) {
       try {
-        console.log('[StockService] Trying URL:', url.substring(0, 120));
+        const isProxied = url.includes('corsproxy') || url.includes('allorigins') || url.includes('codetabs');
+        console.log('[StockService] Attempting:', isProxied ? 'proxied request' : 'direct request');
 
         const data = await tryFetchJson(url);
         const quotes = parseYahooQuotesToRecord(data);
 
         if (Object.keys(quotes).length > 0) {
-          console.log('[StockService] Successfully fetched', Object.keys(quotes).length, 'quotes');
+          console.log('[StockService] ✓ Successfully fetched', Object.keys(quotes).length, 'stock quotes');
+          Object.keys(quotes).slice(0, 3).forEach(sym => {
+            const q = quotes[sym];
+            console.log(`  ${sym}: ₹${q.price} (${q.change >= 0 ? '+' : ''}${q.change})`);
+          });
           return quotes;
+        } else {
+          console.log('[StockService] Response had no valid quotes');
         }
-      } catch {
-        console.log('[StockService] URL failed, trying next...');
+      } catch (error) {
+        const errMsg = error instanceof Error ? error.message : String(error);
+        console.log('[StockService] Request failed:', errMsg.substring(0, 100));
         continue;
       }
     }
 
+    console.warn('[StockService] ✗ All stock quote endpoints failed');
     return {};
   } catch (error) {
-    console.error('[StockService] Error fetching with proxy:', error);
+    console.error('[StockService] Error in fetchStockQuotesWithProxy:', error);
     return {};
   }
 }
@@ -311,6 +326,8 @@ export async function fetchStockQuotesWithProxy(symbols: string[]): Promise<Reco
 export async function fetchIndexQuotesWithProxy(): Promise<IndexQuote[]> {
   try {
     const yahooSymbols = Object.values(INDEX_SYMBOL_MAP).join(',');
+    console.log('[StockService] Fetching indices:', Object.keys(INDEX_SYMBOL_MAP).join(', '));
+    
     const targetUrls = buildYahooQuoteUrls(yahooSymbols);
 
     const urls = targetUrls.flatMap((targetUrl) => [
@@ -320,20 +337,32 @@ export async function fetchIndexQuotesWithProxy(): Promise<IndexQuote[]> {
 
     for (const url of urls) {
       try {
+        const isProxied = url.includes('corsproxy') || url.includes('allorigins') || url.includes('codetabs');
+        console.log('[StockService] Attempting index fetch:', isProxied ? 'proxied' : 'direct');
+        
         const data = await tryFetchJson(url);
         const indices = parseYahooIndicesToArray(data);
 
         if (indices.length > 0) {
+          console.log('[StockService] ✓ Successfully fetched', indices.length, 'indices');
+          indices.forEach(idx => {
+            console.log(`  ${idx.name}: ${idx.price.toFixed(2)} (${idx.change >= 0 ? '+' : ''}${idx.change.toFixed(2)})`);
+          });
           return indices.sort((a, b) => (a.name === 'NIFTY 50' ? -1 : b.name === 'NIFTY 50' ? 1 : 0));
+        } else {
+          console.log('[StockService] Response had no valid indices');
         }
-      } catch {
+      } catch (error) {
+        const errMsg = error instanceof Error ? error.message : String(error);
+        console.log('[StockService] Index request failed:', errMsg.substring(0, 100));
         continue;
       }
     }
 
+    console.warn('[StockService] ✗ All index quote endpoints failed');
     return [];
   } catch (error) {
-    console.error('[StockService] Error fetching indices with proxy:', error);
+    console.error('[StockService] Error in fetchIndexQuotesWithProxy:', error);
     return [];
   }
 }
