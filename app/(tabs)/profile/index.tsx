@@ -145,13 +145,8 @@ export default function ProfileScreen() {
 
              <TouchableOpacity
                style={[styles.menuItem, { borderBottomColor: colors.border }]}
-               onPress={() =>
-                 router.push({
-                   pathname: '/placeholder' as any,
-                   params: { title: 'Profile', subtitle: 'Personal details & KYC (placeholder).' },
-                 })
-               }
-               testID="profile-profile"
+               onPress={() => router.push('/(tabs)/profile/profile-details' as any)}
+               testID="profile-profile-details"
              >
                  <View style={styles.menuIconContainer}>
                    <User size={22} color={colors.textSecondary} />
