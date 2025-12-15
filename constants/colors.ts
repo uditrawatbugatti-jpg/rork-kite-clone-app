@@ -1,0 +1,38 @@
+const Colors = {
+  light: {
+    text: "#111827",
+    background: "#FFFFFF",
+    tint: "#4184F3",
+    tabIconDefault: "#9AA4B2",
+    tabIconSelected: "#4184F3",
+    border: "#E6E8EB",
+    primary: "#4184F3",
+    secondary: "#0EA5E9",
+    success: "#16A34A",
+    danger: "#DC2626",
+    buy: "#4184F3",
+    sell: "#DC2626",
+    surface: "#FFFFFF",
+    card: "#FFFFFF",
+    textSecondary: "#6B7280",
+  },
+  dark: {
+    text: "#111827",
+    background: "#FFFFFF",
+    tint: "#4184F3",
+    tabIconDefault: "#9AA4B2",
+    tabIconSelected: "#4184F3",
+    border: "#E6E8EB",
+    primary: "#4184F3",
+    secondary: "#0EA5E9",
+    success: "#16A34A",
+    danger: "#DC2626",
+    buy: "#4184F3",
+    sell: "#DC2626",
+    surface: "#FFFFFF",
+    card: "#FFFFFF",
+    textSecondary: "#6B7280",
+  },
+};
+
+export default Colors;
