@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "Kite Clone App",
-    "slug": "kite-clone-app",
+    "name": "Kite",
+    "slug": "kitebyzerodha",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
@@ -15,7 +15,7 @@
     },
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "app.rork.kite-clone-app",
+      "bundleIdentifier": "app.rork.kite",
       "infoPlist": {
         "NSFaceIDUsageDescription": "Allow $(PRODUCT_NAME) to use Face ID."
       }
@@ -25,7 +25,7 @@
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
-      "package": "app.rork.kite_clone_app",
+      "package": "app.rork.kite",
       "permissions": [
         "USE_BIOMETRIC",
         "USE_FINGERPRINT",
