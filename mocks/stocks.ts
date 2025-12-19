@@ -19,7 +19,7 @@ export interface Holding {
   dayChangePercent: number;
   invested: number;
   current: number;
-  closePrice?: number; // Previous day close price
+  closePrice?: number;
 }
 
 export interface Position {
@@ -30,7 +30,7 @@ export interface Position {
   ltp: number;
   pnl: number;
   type: 'BUY' | 'SELL';
-  closePrice?: number; // Previous day close price
+  closePrice?: number;
 }
 
 export interface Order {
@@ -41,10 +41,10 @@ export interface Order {
   product: 'MIS' | 'CNC';
   status: 'EXECUTED' | 'REJECTED' | 'CANCELLED' | 'OPEN';
   price: number;
-  quantity: number; // For executed orders, this is the filled quantity
+  quantity: number;
   totalQuantity: number;
   time: string;
-  message?: string; // For rejection reason
+  message?: string;
 }
 
 export const INDICES = [
@@ -178,129 +178,97 @@ export const WATCHLIST_DATA: Stock[] = [
 export const HOLDINGS_DATA: Holding[] = [
   {
     symbol: 'RELIANCE',
-    quantity: 10,
-    avgPrice: 1180.00,
+    quantity: 30,
+    avgPrice: 1126.67,
     ltp: 1272.45,
-    pnl: 924.50,
-    pnlPercent: 7.83,
+    pnl: 4373.40,
+    pnlPercent: 12.94,
     dayChange: -8.30,
     dayChangePercent: -0.65,
-    invested: 11800.00,
-    current: 12724.50,
+    invested: 33800.10,
+    current: 38173.50,
     closePrice: 1280.75,
   },
   {
     symbol: 'HDFCBANK',
-    quantity: 25,
-    avgPrice: 1650.00,
+    quantity: 40,
+    avgPrice: 1635.00,
     ltp: 1847.20,
-    pnl: 4930.00,
-    pnlPercent: 11.95,
+    pnl: 8488.00,
+    pnlPercent: 12.98,
     dayChange: 12.55,
     dayChangePercent: 0.68,
-    invested: 41250.00,
-    current: 46180.00,
+    invested: 65400.00,
+    current: 73888.00,
     closePrice: 1834.65,
   },
   {
     symbol: 'ITC',
-    quantity: 100,
-    avgPrice: 420.00,
+    quantity: 150,
+    avgPrice: 436.00,
     ltp: 492.80,
-    pnl: 7280.00,
-    pnlPercent: 17.33,
+    pnl: 8520.00,
+    pnlPercent: 13.03,
     dayChange: 4.15,
     dayChangePercent: 0.85,
-    invested: 42000.00,
-    current: 49280.00,
+    invested: 65400.00,
+    current: 73920.00,
     closePrice: 488.65,
   },
   {
     symbol: 'TCS',
-    quantity: 5,
-    avgPrice: 3850.00,
+    quantity: 10,
+    avgPrice: 3715.00,
     ltp: 4198.75,
-    pnl: 1743.75,
-    pnlPercent: 9.06,
+    pnl: 4837.50,
+    pnlPercent: 13.02,
     dayChange: -42.10,
     dayChangePercent: -0.99,
-    invested: 19250.00,
-    current: 20993.75,
+    invested: 37150.00,
+    current: 41987.50,
     closePrice: 4240.85,
   },
-];
-
-export const POSITIONS_DATA: Position[] = [
   {
-    symbol: 'NIFTY 19DEC 24800 CE',
-    product: 'MIS',
-    quantity: 50,
-    avgPrice: 168.50,
-    ltp: 198.25,
-    pnl: 1487.50,
-    type: 'BUY',
-    closePrice: 182.30,
-  },
-  {
-    symbol: 'BANKNIFTY 19DEC 53000 PE',
-    product: 'NRML',
-    quantity: 15,
-    avgPrice: 385.00,
-    ltp: 342.80,
-    pnl: -633.00,
-    type: 'BUY',
-    closePrice: 358.45,
-  },
-];
-
-export const ORDERS_DATA: Order[] = [
-  {
-    id: '1001',
-    symbol: 'RELIANCE',
-    exchange: 'NSE',
-    type: 'BUY',
-    product: 'CNC',
-    status: 'EXECUTED',
-    price: 1272.35,
-    quantity: 10,
-    totalQuantity: 10,
-    time: '11:30:45',
-  },
-  {
-    id: '1002',
-    symbol: 'HDFCBANK',
-    exchange: 'NSE',
-    type: 'SELL',
-    product: 'MIS',
-    status: 'REJECTED',
-    price: 1810.00,
-    quantity: 0,
-    totalQuantity: 25,
-    time: '10:15:20',
-    message: 'Insufficient margin',
-  },
-  {
-    id: '1003',
     symbol: 'INFY',
-    exchange: 'NSE',
-    type: 'BUY',
-    product: 'CNC',
-    status: 'OPEN',
-    price: 1920.00,
-    quantity: 0,
-    totalQuantity: 50,
-    time: '09:45:10',
+    quantity: 20,
+    avgPrice: 1710.00,
+    ltp: 1932.85,
+    pnl: 4457.00,
+    pnlPercent: 13.03,
+    dayChange: 18.40,
+    dayChangePercent: 0.96,
+    invested: 34200.00,
+    current: 38657.00,
+    closePrice: 1914.45,
   },
   {
-    id: '1004',
-    symbol: 'TATASTEEL',
-    exchange: 'NSE',
-    type: 'BUY',
-    product: 'CNC',
-    status: 'CANCELLED',
-    price: 142.50,
-    quantity: 0,
-    totalQuantity: 100,
-    time: '12:05:00',
+    symbol: 'SBIN',
+    quantity: 7,
+    avgPrice: 750.00,
+    ltp: 844.15,
+    pnl: 659.05,
+    pnlPercent: 12.55,
+    dayChange: -5.70,
+    dayChangePercent: -0.67,
+    invested: 5250.00,
+    current: 5909.05,
+    closePrice: 849.85,
+  },
+  {
+    symbol: 'BHARTIARTL',
+    quantity: 1,
+    avgPrice: 299.90,
+    ltp: 1598.30,
+    pnl: 1298.40,
+    pnlPercent: 433.01,
+    dayChange: 22.45,
+    dayChangePercent: 1.42,
+    invested: 299.90,
+    current: 1598.30,
+    closePrice: 1575.85,
   },
 ];
+
+export const POSITIONS_DATA: Position[] = [];
+
+export const ORDERS_DATA: Order[] = [];
